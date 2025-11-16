@@ -42,10 +42,15 @@ function App() {
             return () => clearInterval(pollInterval);
           } else if (status.loaded) {
             setError(null);
+          } else if (status.error) {
+            setError(`Backend error: ${status.error}`);
           }
+        } else {
+          setError('Cannot connect to backend. Make sure the server is running on port 3001.');
         }
       } catch (err) {
-        console.warn('Status check failed:', err);
+        console.error('Status check failed:', err);
+        setError('Cannot connect to backend. Make sure the server is running on port 3001.');
       }
     };
     
@@ -70,30 +75,56 @@ function App() {
   const fetchRoutes = async () => {
     if (!startLocation || !endLocation) return;
     
+    // Validate coordinates
+    if (typeof startLocation.lat !== 'number' || typeof startLocation.lng !== 'number' ||
+        typeof endLocation.lat !== 'number' || typeof endLocation.lng !== 'number') {
+      setError('Invalid coordinates. Please select valid locations.');
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     
     try {
-      // Format coordinates as lat,lng
-      const startStr = `${startLocation.lat},${startLocation.lng}`;
-      const endStr = `${endLocation.lat},${endLocation.lng}`;
+      // Format coordinates as lat,lng (URL encode to handle special characters)
+      const startStr = encodeURIComponent(`${startLocation.lat},${startLocation.lng}`);
+      const endStr = encodeURIComponent(`${endLocation.lat},${endLocation.lng}`);
       
-      const response = await fetch(
-        `${API_BASE_URL}/route?start=${startStr}&end=${endStr}&hour=${hour}`
-      );
+      const url = `${API_BASE_URL}/route?start=${startStr}&end=${endStr}&hour=${hour}`;
+      console.log('Fetching route from:', url);
+      
+      const response = await fetch(url);
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch routes');
+        let errorMessage = 'Failed to fetch routes';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (e) {
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
       }
       
       const data = await response.json();
+      console.log('Route data received:', {
+        fastestPoints: data.fastestRoute?.length || 0,
+        safestPoints: data.safestRoute?.length || 0,
+        start: data.start,
+        end: data.end
+      });
+      
+      if (!data.fastestRoute || !data.safestRoute) {
+        throw new Error('Invalid route data received from server');
+      }
+      
       setFastestRoute(data.fastestRoute || []);
       setSafestRoute(data.safestRoute || []);
       setStartCoords(data.start);
       setEndCoords(data.end);
     } catch (err) {
-      setError(err.message);
+      console.error('Error fetching routes:', err);
+      setError(err.message || 'Failed to fetch routes. Please check that the backend is running.');
       setFastestRoute([]);
       setSafestRoute([]);
       setStartCoords(null);

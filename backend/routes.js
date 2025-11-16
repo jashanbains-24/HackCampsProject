@@ -102,32 +102,59 @@ router.get('/route', async (req, res) => {
     
     // Handle test node IDs (A-F) or coordinates
     let startCoord, endCoord;
+    const startUpper = start.toUpperCase().trim();
+    const endUpper = end.toUpperCase().trim();
     
-    if (testNodes[start.toUpperCase()]) {
-      startCoord = testNodes[start.toUpperCase()];
+    if (testNodes[startUpper]) {
+      startCoord = testNodes[startUpper];
     } else {
-      // Try to parse as coordinates
-      const parts = start.split(',');
+      // Try to parse as coordinates (handle URL encoding)
+      const decodedStart = decodeURIComponent(start);
+      const parts = decodedStart.split(',');
       if (parts.length === 2) {
-        startCoord = [parseFloat(parts[0]), parseFloat(parts[1])];
+        const lat = parseFloat(parts[0].trim());
+        const lng = parseFloat(parts[1].trim());
+        if (isNaN(lat) || isNaN(lng)) {
+          return res.status(400).json({ 
+            error: `Invalid start coordinates: ${decodedStart}. Expected format: lat,lng` 
+          });
+        }
+        startCoord = [lat, lng];
       } else {
         return res.status(400).json({ 
-          error: `Invalid start: ${start}. Use node ID (A-F) or lat,lng coordinates` 
+          error: `Invalid start: ${decodedStart}. Use node ID (A-F) or lat,lng coordinates` 
         });
       }
     }
     
-    if (testNodes[end.toUpperCase()]) {
-      endCoord = testNodes[end.toUpperCase()];
+    if (testNodes[endUpper]) {
+      endCoord = testNodes[endUpper];
     } else {
-      const parts = end.split(',');
+      // Try to parse as coordinates (handle URL encoding)
+      const decodedEnd = decodeURIComponent(end);
+      const parts = decodedEnd.split(',');
       if (parts.length === 2) {
-        endCoord = [parseFloat(parts[0]), parseFloat(parts[1])];
+        const lat = parseFloat(parts[0].trim());
+        const lng = parseFloat(parts[1].trim());
+        if (isNaN(lat) || isNaN(lng)) {
+          return res.status(400).json({ 
+            error: `Invalid end coordinates: ${decodedEnd}. Expected format: lat,lng` 
+          });
+        }
+        endCoord = [lat, lng];
       } else {
         return res.status(400).json({ 
-          error: `Invalid end: ${end}. Use node ID (A-F) or lat,lng coordinates` 
+          error: `Invalid end: ${decodedEnd}. Use node ID (A-F) or lat,lng coordinates` 
         });
       }
+    }
+    
+    // Validate coordinates are in reasonable range (Vancouver area)
+    if (startCoord[0] < 49 || startCoord[0] > 50 || startCoord[1] < -124 || startCoord[1] > -122 ||
+        endCoord[0] < 49 || endCoord[0] > 50 || endCoord[1] < -124 || endCoord[1] > -122) {
+      return res.status(400).json({ 
+        error: 'Coordinates are outside Vancouver area. Please select locations in Vancouver, BC.' 
+      });
     }
     
     // Find closest nodes in graph
@@ -136,7 +163,7 @@ router.get('/route', async (req, res) => {
     
     if (!startNode || !endNode) {
       return res.status(400).json({ 
-        error: 'Could not find nearby street segments for the given coordinates' 
+        error: 'Could not find nearby street segments for the given coordinates. Please try locations closer to bike routes.' 
       });
     }
     
