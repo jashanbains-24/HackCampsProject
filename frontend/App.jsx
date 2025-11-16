@@ -149,6 +149,18 @@ function App() {
     fetchRoutes();
   };
 
+  // Auto-refetch routes when departure time changes (if locations are set and toggle is enabled)
+  useEffect(() => {
+    // Only auto-refetch if:
+    // 1. Both locations are set
+    // 2. Departure time toggle is enabled
+    // 3. We have routes already (to avoid fetching on initial mount)
+    if (startLocation && endLocation && departureTimeEnabled && (fastestRoute.length > 0 || safestRoute.length > 0)) {
+      fetchRoutes();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departureTime, departureTimeEnabled]); // Refetch when departure time or toggle changes
+
   const canSearch = startLocation && endLocation && backendReady && !loading;
 
   return (

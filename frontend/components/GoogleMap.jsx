@@ -250,20 +250,9 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
       fastestPolylineRef.current.setPath(path);
       fastestPolylineRef.current.setOptions({
         strokeOpacity: opacity,
-        strokeWeight: isSelected ? 8 : 6, // Original thickness
+        strokeWeight: isSelected ? 4 : 3, // Thinner lines
         clickable: false, // Disable clicks on visible line
-        icons: [{
-          icon: {
-            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 4,
-            strokeColor: '#0572f7',
-            strokeWeight: 2,
-            fillColor: '#0572f7',
-            fillOpacity: opacity
-          },
-          offset: '50%',
-          repeat: '100px'
-        }]
+        icons: [], // Remove arrows
       });
     } else {
       fastestPolylineRef.current = new window.google.maps.Polyline({
@@ -271,21 +260,10 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         geodesic: true,
         strokeColor: '#0572f7', // Apple Blue
         strokeOpacity: opacity,
-        strokeWeight: isSelected ? 8 : 6, // Original thickness
+        strokeWeight: isSelected ? 4 : 3, // Thinner lines
         map: mapInstanceRef.current,
         clickable: false, // Disable clicks on visible line
-        icons: [{
-          icon: {
-            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 4,
-            strokeColor: '#0572f7',
-            strokeWeight: 2,
-            fillColor: '#0572f7',
-            fillOpacity: opacity
-          },
-          offset: '50%',
-          repeat: '100px'
-        }]
+        icons: [], // No arrows
       });
     }
 
@@ -334,20 +312,9 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
       safestPolylineRef.current.setPath(path);
       safestPolylineRef.current.setOptions({
         strokeOpacity: opacity,
-        strokeWeight: isSelected ? 8 : 6, // Original thickness
+        strokeWeight: isSelected ? 4 : 3, // Thinner lines
         clickable: false, // Disable clicks on visible line
-        icons: [{
-          icon: {
-            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 4,
-            strokeColor: '#00FF7F',
-            strokeWeight: 2,
-            fillColor: '#00FF7F',
-            fillOpacity: opacity
-          },
-          offset: '50%',
-          repeat: '100px'
-        }]
+        icons: [], // Remove arrows
       });
     } else {
       safestPolylineRef.current = new window.google.maps.Polyline({
@@ -355,21 +322,10 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         geodesic: true,
         strokeColor: '#00FF7F', // Spring Green
         strokeOpacity: opacity,
-        strokeWeight: isSelected ? 8 : 6, // Original thickness
+        strokeWeight: isSelected ? 4 : 3, // Thinner lines
         map: mapInstanceRef.current,
         clickable: false, // Disable clicks on visible line
-        icons: [{
-          icon: {
-            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-            scale: 4,
-            strokeColor: '#00FF7F',
-            strokeWeight: 2,
-            fillColor: '#00FF7F',
-            fillOpacity: opacity
-          },
-          offset: '50%',
-          repeat: '100px'
-        }]
+        icons: [], // No arrows
       });
     }
 
@@ -456,19 +412,54 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
           endInfoWindowRef.current.setContent(`<div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; padding: 8px 12px; font-size: 14px; color: #1C1C1E;"><strong style="font-weight: 600;">End</strong><br/><span style="color: #636366;">${endLabel}</span></div>`);
         }
       } else {
+        // Create circular checker flag icon
+        const createCheckerFlagIcon = () => {
+          const size = 36;
+          const radius = size / 2 - 2;
+          const canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          
+          // Create clipping path for circle
+          ctx.beginPath();
+          ctx.arc(size / 2, size / 2, radius, 0, 2 * Math.PI);
+          ctx.clip();
+          
+          // Draw white background
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, size, size);
+          
+          // Draw checker pattern (6x6 grid)
+          const checkSize = size / 6;
+          for (let row = 0; row < 6; row++) {
+            for (let col = 0; col < 6; col++) {
+              if ((row + col) % 2 === 0) {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(col * checkSize, row * checkSize, checkSize, checkSize);
+              }
+            }
+          }
+          
+          // Draw circle border
+          ctx.beginPath();
+          ctx.arc(size / 2, size / 2, radius, 0, 2 * Math.PI);
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          return {
+            url: canvas.toDataURL(),
+            scaledSize: new window.google.maps.Size(size, size),
+            anchor: new window.google.maps.Point(size / 2, size / 2)
+          };
+        };
+        
         endMarkerRef.current = new window.google.maps.Marker({
           position: position,
           map: mapInstanceRef.current,
           title: endLabel,
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 12,
-            fillColor: '#FF3B30', // Apple Red
-            fillOpacity: 1,
-            strokeColor: '#FFFFFF',
-            strokeWeight: 3,
-            anchor: new window.google.maps.Point(0, 0)
-          },
+          icon: createCheckerFlagIcon(),
           zIndex: 1000,
           optimized: false
         });

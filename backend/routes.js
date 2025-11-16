@@ -98,21 +98,40 @@ router.get('/route', async (req, res) => {
       });
     }
 
-    // Extract hour from departure timestamp if provided, otherwise use hour parameter or default
-    let currentHour = 12;
+    // Extract departure date if provided, otherwise use hour parameter or default
+    let departureDate = null;
     if (departure) {
       try {
-        const departureDate = new Date(departure);
-        if (!isNaN(departureDate.getTime())) {
-          currentHour = departureDate.getHours();
+        const decodedDeparture = decodeURIComponent(departure);
+        const parsedDate = new Date(decodedDeparture);
+        if (!isNaN(parsedDate.getTime())) {
+          departureDate = parsedDate;
+          console.log(`[routes.js] Parsed departure date: ${departureDate.toISOString()}, Local: ${departureDate.toString()}`);
+        } else {
+          console.warn(`[routes.js] Invalid departure date: ${decodedDeparture}`);
         }
       } catch (e) {
+        console.warn(`[routes.js] Error parsing departure date: ${e.message}`);
         // If parsing fails, fall back to hour parameter
-        currentHour = hour ? parseInt(hour) : 12;
+        const currentHour = hour ? parseInt(hour) : 12;
+        departureDate = new Date();
+        departureDate.setHours(currentHour, 0, 0, 0);
       }
     } else if (hour) {
-      currentHour = parseInt(hour);
+      departureDate = new Date();
+      departureDate.setHours(parseInt(hour), 0, 0, 0);
+    } else {
+      // Default to current time + 1 hour
+      departureDate = new Date();
+      departureDate.setHours(departureDate.getHours() + 1, 0, 0, 0);
     }
+    
+    if (!departureDate) {
+      departureDate = new Date();
+      departureDate.setHours(12, 0, 0, 0);
+    }
+    
+    console.log(`[routes.js] Using departure date: ${departureDate.toISOString()}, Hour: ${departureDate.getHours()}`);
     
     // Handle test node IDs (A-F) or coordinates
     let startCoord, endCoord;
@@ -183,7 +202,7 @@ router.get('/route', async (req, res) => {
     
     // Find paths
     const fastestPathNodes = findFastestPath(graph, startNode, endNode);
-    const safestPathNodes = findSafestPath(graph, startNode, endNode, currentHour);
+    const safestPathNodes = findSafestPath(graph, startNode, endNode, departureDate);
     
     if (fastestPathNodes.length === 0 && safestPathNodes.length === 0) {
       return res.status(404).json({ 

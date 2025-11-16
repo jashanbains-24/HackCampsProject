@@ -369,17 +369,97 @@ function findFastestPath(graph, startNode, endNode) {
   return [];
 }
 
+// Calculate sunrise and sunset times for Vancouver (approximate)
+// Vancouver coordinates: ~49.28°N, ~123.12°W
+function getSunriseSunset(date) {
+  const lat = 49.28;
+  const lng = -123.12;
+  
+  // Calculate day of year (1-365)
+  const startOfYear = new Date(date.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((date - startOfYear) / (1000 * 60 * 60 * 24)) + 1;
+  
+  // Solar declination in radians
+  const declinationRad = 23.45 * (Math.PI / 180) * Math.sin(2 * Math.PI * (284 + dayOfYear) / 365);
+  
+  // Latitude in radians
+  const latRad = lat * (Math.PI / 180);
+  
+  // Hour angle for sunrise/sunset
+  const hourAngle = Math.acos(-Math.tan(latRad) * Math.tan(declinationRad));
+  
+  // Sunrise and sunset in hours (UTC)
+  const sunriseUTC = 12 - (hourAngle * 180 / Math.PI) / 15;
+  const sunsetUTC = 12 + (hourAngle * 180 / Math.PI) / 15;
+  
+  // Convert to local time (PST/PDT is UTC-8 or UTC-7)
+  // Simple approximation: assume UTC-8 (PST) for now
+  // Note: This doesn't account for DST, but is close enough
+  const timezoneOffset = 8; // PST offset
+  let sunriseLocal = sunriseUTC - timezoneOffset;
+  let sunsetLocal = sunsetUTC - timezoneOffset;
+  
+  // Normalize to 0-24 range
+  if (sunriseLocal < 0) sunriseLocal += 24;
+  if (sunsetLocal < 0) sunsetLocal += 24;
+  if (sunriseLocal >= 24) sunriseLocal -= 24;
+  if (sunsetLocal >= 24) sunsetLocal -= 24;
+  
+  return { sunrise: sunriseLocal, sunset: sunsetLocal };
+}
+
+// Check if current time is between sunset and sunrise (night)
+function isNightTime(date) {
+  const { sunrise, sunset } = getSunriseSunset(date);
+  const hour = date.getHours() + date.getMinutes() / 60;
+  
+  // Normalize hour to 0-24 range
+  const normalizedHour = hour >= 0 && hour < 24 ? hour : (hour < 0 ? hour + 24 : hour - 24);
+  
+  // Handle case where sunset is after midnight (winter - shouldn't happen in Vancouver)
+  if (sunset > sunrise) {
+    // Normal case: sunset in evening (e.g., 18:00), sunrise in morning (e.g., 6:00)
+    // Night is: hour >= sunset OR hour < sunrise
+    const isNight = normalizedHour >= sunset || normalizedHour < sunrise;
+    console.log(`[isNightTime] Hour: ${normalizedHour.toFixed(2)}, Sunrise: ${sunrise.toFixed(2)}, Sunset: ${sunset.toFixed(2)}, IsNight: ${isNight}`);
+    return isNight;
+  } else {
+    // Edge case: very high latitude (shouldn't happen in Vancouver)
+    return normalizedHour >= sunset && normalizedHour < sunrise;
+  }
+}
+
 // Dijkstra's algorithm for safest route (safety-weighted)
-function findSafestPath(graph, startNode, endNode, currentHour) {
-  const hour = parseInt(currentHour) || 12;
+function findSafestPath(graph, startNode, endNode, departureDate) {
+  // Parse departure date - can be Date object, ISO string, or hour number
+  let date;
+  if (departureDate instanceof Date) {
+    date = departureDate;
+  } else if (typeof departureDate === 'string') {
+    date = new Date(departureDate);
+  } else {
+    // Fallback: treat as hour number
+    const hour = parseInt(departureDate) || 12;
+    date = new Date();
+    date.setHours(hour, 0, 0, 0);
+  }
+  
+  const isNight = isNightTime(date);
+  const hour = date.getHours();
+  
+  console.log(`[findSafestPath] Date: ${date.toISOString()}, Hour: ${hour}, IsNight: ${isNight}`);
+  
   let lightWeight = W_LIGHTING;
   let crimeWeight = W_CRIME;
-  const isDayTime = (hour > 6 && hour < 19);
   
-  if (isDayTime) {
-    lightWeight = 0.1;
-  } else {
+  if (isNight) {
+    // Night time (between sunset and sunrise): Use original safety formula
+    console.log('[findSafestPath] Using NIGHT mode (original safety formula)');
     crimeWeight = crimeWeight * 1.5;
+  } else {
+    // Day time (between sunrise and sunset): Similar to fastest but with small safety bonus
+    console.log('[findSafestPath] Using DAY mode (distance-based with safety penalty)');
+    lightWeight = 0.1;
   }
   
   const distances = {};
@@ -423,14 +503,35 @@ function findSafestPath(graph, startNode, endNode, currentHour) {
         
         const segment = neighbor.segment;
         const scores = segment.scores;
-        const safetyScore = (W_INFRASTRUCTURE * scores.infra) +
-                          (lightWeight * scores.light) +
-                          (W_AMENITY * scores.amenity) +
-                          (crimeWeight * scores.crime) +
-                          (W_DISRUPTION * scores.disruption);
         
-        // Cost = distance - safety bonus (safer routes are "shorter")
-        const cost = neighbor.distance - (safetyScore * 0.1);
+        let cost;
+        if (isNight) {
+          // Night: Use original safety formula (safety-weighted)
+          const safetyScore = (W_INFRASTRUCTURE * scores.infra) +
+                            (lightWeight * scores.light) +
+                            (W_AMENITY * scores.amenity) +
+                            (crimeWeight * scores.crime) +
+                            (W_DISRUPTION * scores.disruption);
+          
+          // Cost = distance - safety bonus (safer routes are "shorter")
+          cost = neighbor.distance - (safetyScore * 0.1);
+        } else {
+          // Day: Similar to fastest but with safety consideration
+          // Use distance as primary factor, but add penalty for low safety
+          // Make it more distinct from fastest by using a larger safety penalty
+          const safetyScore = (W_INFRASTRUCTURE * scores.infra) +
+                            (lightWeight * scores.light) +
+                            (W_AMENITY * scores.amenity) +
+                            (crimeWeight * scores.crime) +
+                            (W_DISRUPTION * scores.disruption);
+          
+          // Cost = distance + safety penalty (lower safety = higher cost)
+          // Use a larger multiplier (0.15) to make it more distinct from fastest
+          // This makes it prioritize shorter routes but avoid very unsafe segments
+          const safetyPenalty = Math.max(0, 5 - safetyScore) * 0.15;
+          cost = neighbor.distance + safetyPenalty;
+        }
+        
         const finalCost = Math.max(0.1, cost);
         
         const alt = distances[currentNode] + finalCost;
