@@ -90,7 +90,7 @@ router.get('/route', async (req, res) => {
     // Wait for data to be loaded
     await initializeData();
     
-    const { start, end, hour } = req.query;
+    const { start, end, hour, departure } = req.query;
     
     if (!start || !end) {
       return res.status(400).json({ 
@@ -98,7 +98,21 @@ router.get('/route', async (req, res) => {
       });
     }
 
-    const currentHour = hour || 12;
+    // Extract hour from departure timestamp if provided, otherwise use hour parameter or default
+    let currentHour = 12;
+    if (departure) {
+      try {
+        const departureDate = new Date(departure);
+        if (!isNaN(departureDate.getTime())) {
+          currentHour = departureDate.getHours();
+        }
+      } catch (e) {
+        // If parsing fails, fall back to hour parameter
+        currentHour = hour ? parseInt(hour) : 12;
+      }
+    } else if (hour) {
+      currentHour = parseInt(hour);
+    }
     
     // Handle test node IDs (A-F) or coordinates
     let startCoord, endCoord;

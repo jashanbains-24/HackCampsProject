@@ -85,32 +85,64 @@ function LocationSearch({ value, onChange, placeholder, label, disabled }) {
     }
   }, [value]);
 
+  const [isFocused, setIsFocused] = useState(false);
+
   return (
-    <div>
-      <label className="block text-sm font-medium mb-2 block">
+    <div className="location-search">
+      <label htmlFor={`location-search-${label}`} className="form-label">
         {label}
       </label>
-      <input
-        ref={inputRef}
-        type="text"
-        value={searchValue}
-        onChange={(e) => {
-          setSearchValue(e.target.value);
-          // Clear selection if user manually edits
-          if (onChange) {
-            onChange(null);
-          }
-        }}
-        placeholder={placeholder || "Search for a location..."}
-        disabled={disabled || !isLoaded}
-        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-black px-3 py-2 disabled:bg-gray-200 disabled:cursor-not-allowed"
-      />
+      <div className={`location-input-wrapper ${isFocused ? 'focused' : ''}`}>
+        <svg 
+          className={`location-icon ${isFocused || searchValue ? 'active' : ''}`}
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={2} 
+            d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" 
+          />
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth={2} 
+            d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" 
+          />
+        </svg>
+        <input
+          id={`location-search-${label}`}
+          ref={inputRef}
+          type="text"
+          value={searchValue}
+          onChange={(e) => {
+            setSearchValue(e.target.value);
+            // Clear selection if user manually edits
+            if (onChange) {
+              onChange(null);
+            }
+          }}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          placeholder={placeholder || "Search for a location..."}
+          disabled={disabled || !isLoaded}
+          className="form-input location-input"
+        />
+        {!isLoaded && (
+          <div className="loading-indicator">
+            <div className="loading-dot"></div>
+            <div className="loading-dot"></div>
+            <div className="loading-dot"></div>
+          </div>
+        )}
+      </div>
       {!isLoaded && (
-        <p className="text-xs text-gray-400 mt-1">Loading search...</p>
+        <p className="location-loading-text">Loading search...</p>
       )}
     </div>
   );
 }
 
 export default LocationSearch;
-

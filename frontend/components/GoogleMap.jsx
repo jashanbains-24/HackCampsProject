@@ -27,12 +27,14 @@ const convertToGoogleFormat = (coords) => {
   }));
 };
 
-function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start', endLabel = 'End' }) {
+function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start', endLabel = 'End', selectedRoute = 'safest', onRouteSelect }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const fastestPolylineRef = useRef(null);
+  const fastestClickPolylineRef = useRef(null); // Invisible polyline for larger hitbox
   const safestPolylineRef = useRef(null);
+  const safestClickPolylineRef = useRef(null); // Invisible polyline for larger hitbox
   const startMarkerRef = useRef(null);
   const endMarkerRef = useRef(null);
   const startInfoWindowRef = useRef(null);
@@ -89,12 +91,137 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
   useEffect(() => {
     if (!isLoaded || !mapRef.current || mapInstanceRef.current) return;
 
+    // Ultra Dark Mode style configuration
+    const darkModeStyles = [
+      { elementType: 'geometry', stylers: [{ color: '#1a1a1a' }] },
+      { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+      { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a1a' }, { weight: 2 }] },
+      { elementType: 'labels.text.fill', stylers: [{ color: '#8e8e93' }] },
+      {
+        featureType: 'all',
+        elementType: 'labels.text.fill',
+        stylers: [{ color: '#8e8e93' }]
+      },
+      {
+        featureType: 'administrative',
+        elementType: 'geometry',
+        stylers: [{ color: '#1a1a1a' }]
+      },
+      {
+        featureType: 'administrative.locality',
+        elementType: 'labels.text.fill',
+        stylers: [{ color: '#a8a8a8' }]
+      },
+      {
+        featureType: 'administrative.neighborhood',
+        elementType: 'labels.text.fill',
+        stylers: [{ color: '#6e6e6e' }]
+      },
+      {
+        featureType: 'poi',
+        elementType: 'geometry',
+        stylers: [{ color: '#1a1a1a' }]
+      },
+      {
+        featureType: 'poi',
+        elementType: 'labels.text.fill',
+        stylers: [{ color: '#6e6e6e' }]
+      },
+      {
+        featureType: 'poi.park',
+        elementType: 'geometry',
+        stylers: [{ color: '#1a2a1a' }]
+      },
+      {
+        featureType: 'poi.park',
+        elementType: 'labels.text.fill',
+        stylers: [{ color: '#4a6a4a' }]
+      },
+      {
+        featureType: 'road',
+        elementType: 'geometry',
+        stylers: [{ color: '#2a2a2a' }]
+      },
+      {
+        featureType: 'road',
+        elementType: 'geometry.stroke',
+        stylers: [{ color: '#1a1a1a' }]
+      },
+      {
+        featureType: 'road',
+        elementType: 'labels.text.fill',
+        stylers: [{ color: '#8e8e93' }]
+      },
+      {
+        featureType: 'road.highway',
+        elementType: 'geometry',
+        stylers: [{ color: '#3a3a3a' }]
+      },
+      {
+        featureType: 'road.highway',
+        elementType: 'geometry.stroke',
+        stylers: [{ color: '#1a1a1a' }]
+      },
+      {
+        featureType: 'road.highway',
+        elementType: 'labels.text.fill',
+        stylers: [{ color: '#a8a8a8' }]
+      },
+      {
+        featureType: 'road.arterial',
+        elementType: 'geometry',
+        stylers: [{ color: '#2a2a2a' }]
+      },
+      {
+        featureType: 'road.local',
+        elementType: 'geometry',
+        stylers: [{ color: '#1f1f1f' }]
+      },
+      {
+        featureType: 'transit',
+        elementType: 'geometry',
+        stylers: [{ color: '#1a1a1a' }]
+      },
+      {
+        featureType: 'transit.station',
+        elementType: 'geometry',
+        stylers: [{ color: '#2a2a2a' }]
+      },
+      {
+        featureType: 'transit.station',
+        elementType: 'labels.text.fill',
+        stylers: [{ color: '#8e8e93' }]
+      },
+      {
+        featureType: 'water',
+        elementType: 'geometry',
+        stylers: [{ color: '#0a0a0a' }]
+      },
+      {
+        featureType: 'water',
+        elementType: 'labels.text.fill',
+        stylers: [{ color: '#4a4a4a' }]
+      },
+      {
+        featureType: 'water',
+        elementType: 'labels.text.stroke',
+        stylers: [{ color: '#0a0a0a' }]
+      }
+    ];
+
     const map = new window.google.maps.Map(mapRef.current, {
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
-      mapTypeControl: true,
-      streetViewControl: true,
-      fullscreenControl: true,
+      mapTypeControl: false,        // Remove map type selector
+      streetViewControl: false,     // Remove street view button
+      fullscreenControl: false,     // Remove fullscreen button
+      zoomControl: false,           // Remove zoom buttons (+/-)
+      scaleControl: false,          // Remove scale bar
+      rotateControl: false,         // Remove rotate control
+      panControl: false,           // Remove pan control
+      clickableIcons: false,        // Disable clicking on POIs
+      keyboardShortcuts: false,     // Disable keyboard shortcuts
+      styles: darkModeStyles,
     });
 
     mapInstanceRef.current = map;
@@ -107,24 +234,82 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         fastestPolylineRef.current.setMap(null);
         fastestPolylineRef.current = null;
       }
+      if (fastestClickPolylineRef.current) {
+        fastestClickPolylineRef.current.setMap(null);
+        fastestClickPolylineRef.current = null;
+      }
       return;
     }
 
     const path = convertToGoogleFormat(fastestRoute);
+    const isSelected = selectedRoute === 'fastest';
+    const opacity = isSelected ? 0.85 : 0.595; // 30% reduction when not selected (0.85 * 0.7)
 
+    // Update or create visible polyline (original thickness)
     if (fastestPolylineRef.current) {
       fastestPolylineRef.current.setPath(path);
+      fastestPolylineRef.current.setOptions({
+        strokeOpacity: opacity,
+        strokeWeight: isSelected ? 8 : 6, // Original thickness
+        clickable: false, // Disable clicks on visible line
+        icons: [{
+          icon: {
+            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 4,
+            strokeColor: '#0572f7',
+            strokeWeight: 2,
+            fillColor: '#0572f7',
+            fillOpacity: opacity
+          },
+          offset: '50%',
+          repeat: '100px'
+        }]
+      });
     } else {
       fastestPolylineRef.current = new window.google.maps.Polyline({
         path: path,
         geodesic: true,
-        strokeColor: '#0000FF', // Blue
-        strokeOpacity: 0.7,
-        strokeWeight: 6,
-        map: mapInstanceRef.current
+        strokeColor: '#0572f7', // Apple Blue
+        strokeOpacity: opacity,
+        strokeWeight: isSelected ? 8 : 6, // Original thickness
+        map: mapInstanceRef.current,
+        clickable: false, // Disable clicks on visible line
+        icons: [{
+          icon: {
+            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 4,
+            strokeColor: '#0572f7',
+            strokeWeight: 2,
+            fillColor: '#0572f7',
+            fillOpacity: opacity
+          },
+          offset: '50%',
+          repeat: '100px'
+        }]
       });
     }
-  }, [fastestRoute, mapInstanceRef.current]);
+
+    // Create or update invisible clickable polyline with larger hitbox
+    if (fastestClickPolylineRef.current) {
+      fastestClickPolylineRef.current.setPath(path);
+    } else {
+      fastestClickPolylineRef.current = new window.google.maps.Polyline({
+        path: path,
+        geodesic: true,
+        strokeColor: '#0A84FF',
+        strokeOpacity: 0, // Completely invisible
+        strokeWeight: 20, // Large hitbox for easy clicking
+        map: mapInstanceRef.current,
+        clickable: true,
+        zIndex: 1 // Behind visible polyline
+      });
+      
+      // Make invisible polyline handle clicks
+      fastestClickPolylineRef.current.addListener('click', () => {
+        if (onRouteSelect) onRouteSelect('fastest');
+      });
+    }
+  }, [fastestRoute, mapInstanceRef.current, selectedRoute]);
 
   // Update safest route polyline
   useEffect(() => {
@@ -133,24 +318,82 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         safestPolylineRef.current.setMap(null);
         safestPolylineRef.current = null;
       }
+      if (safestClickPolylineRef.current) {
+        safestClickPolylineRef.current.setMap(null);
+        safestClickPolylineRef.current = null;
+      }
       return;
     }
 
     const path = convertToGoogleFormat(safestRoute);
+    const isSelected = selectedRoute === 'safest';
+    const opacity = isSelected ? 0.85 : 0.595; // 30% reduction when not selected (0.85 * 0.7)
 
+    // Update or create visible polyline (original thickness)
     if (safestPolylineRef.current) {
       safestPolylineRef.current.setPath(path);
+      safestPolylineRef.current.setOptions({
+        strokeOpacity: opacity,
+        strokeWeight: isSelected ? 8 : 6, // Original thickness
+        clickable: false, // Disable clicks on visible line
+        icons: [{
+          icon: {
+            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 4,
+            strokeColor: '#00FF7F',
+            strokeWeight: 2,
+            fillColor: '#00FF7F',
+            fillOpacity: opacity
+          },
+          offset: '50%',
+          repeat: '100px'
+        }]
+      });
     } else {
       safestPolylineRef.current = new window.google.maps.Polyline({
         path: path,
         geodesic: true,
-        strokeColor: '#00FF00', // Green
-        strokeOpacity: 0.7,
-        strokeWeight: 6,
-        map: mapInstanceRef.current
+        strokeColor: '#00FF7F', // Spring Green
+        strokeOpacity: opacity,
+        strokeWeight: isSelected ? 8 : 6, // Original thickness
+        map: mapInstanceRef.current,
+        clickable: false, // Disable clicks on visible line
+        icons: [{
+          icon: {
+            path: window.google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            scale: 4,
+            strokeColor: '#00FF7F',
+            strokeWeight: 2,
+            fillColor: '#00FF7F',
+            fillOpacity: opacity
+          },
+          offset: '50%',
+          repeat: '100px'
+        }]
       });
     }
-  }, [safestRoute, mapInstanceRef.current]);
+
+    // Create or update invisible clickable polyline with larger hitbox
+    if (safestClickPolylineRef.current) {
+      safestClickPolylineRef.current.setPath(path);
+    } else {
+      safestClickPolylineRef.current = new window.google.maps.Polyline({
+        path: path,
+        geodesic: true,
+        strokeColor: '#00FF7F',
+        strokeOpacity: 0, // Completely invisible
+        strokeWeight: 20, // Large hitbox for easy clicking
+        map: mapInstanceRef.current,
+        clickable: true,
+        zIndex: 1 // Behind visible polyline
+      });
+      
+      // Make invisible polyline handle clicks
+      safestClickPolylineRef.current.addListener('click', () => {
+        if (onRouteSelect) onRouteSelect('safest');
+      });
+    }
+  }, [safestRoute, mapInstanceRef.current, selectedRoute]);
 
   // Update start marker
   useEffect(() => {
@@ -163,27 +406,29 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         startMarkerRef.current.setPosition(position);
         // Update info window content if label changed
         if (startInfoWindowRef.current) {
-          startInfoWindowRef.current.setContent(`<div><strong>Start</strong><br/>${startLabel}</div>`);
+          startInfoWindowRef.current.setContent(`<div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; padding: 8px 12px; font-size: 14px; color: #1C1C1E;"><strong style="font-weight: 600;">Start</strong><br/><span style="color: #636366;">${startLabel}</span></div>`);
         }
       } else {
         startMarkerRef.current = new window.google.maps.Marker({
           position: position,
           map: mapInstanceRef.current,
-          label: 'S',
           title: startLabel,
           icon: {
             path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: '#00FF00',
+            scale: 12,
+            fillColor: '#30D158', // Apple Green
             fillOpacity: 1,
             strokeColor: '#FFFFFF',
-            strokeWeight: 2
-          }
+            strokeWeight: 3,
+            anchor: new window.google.maps.Point(0, 0)
+          },
+          zIndex: 1000,
+          optimized: false
         });
         
-        // Add info window for start marker
+        // Add info window for start marker (Apple-style)
         startInfoWindowRef.current = new window.google.maps.InfoWindow({
-          content: `<div><strong>Start</strong><br/>${startLabel}</div>`
+          content: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; padding: 8px 12px; font-size: 14px; color: #1C1C1E;"><strong style="font-weight: 600;">Start</strong><br/><span style="color: #636366;">${startLabel}</span></div>`
         });
         startMarkerRef.current.addListener('click', () => {
           startInfoWindowRef.current.open(mapInstanceRef.current, startMarkerRef.current);
@@ -208,27 +453,29 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         endMarkerRef.current.setPosition(position);
         // Update info window content if label changed
         if (endInfoWindowRef.current) {
-          endInfoWindowRef.current.setContent(`<div><strong>End</strong><br/>${endLabel}</div>`);
+          endInfoWindowRef.current.setContent(`<div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; padding: 8px 12px; font-size: 14px; color: #1C1C1E;"><strong style="font-weight: 600;">End</strong><br/><span style="color: #636366;">${endLabel}</span></div>`);
         }
       } else {
         endMarkerRef.current = new window.google.maps.Marker({
           position: position,
           map: mapInstanceRef.current,
-          label: 'E',
           title: endLabel,
           icon: {
             path: window.google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: '#FF0000',
+            scale: 12,
+            fillColor: '#FF3B30', // Apple Red
             fillOpacity: 1,
             strokeColor: '#FFFFFF',
-            strokeWeight: 2
-          }
+            strokeWeight: 3,
+            anchor: new window.google.maps.Point(0, 0)
+          },
+          zIndex: 1000,
+          optimized: false
         });
         
-        // Add info window for end marker
+        // Add info window for end marker (Apple-style)
         endInfoWindowRef.current = new window.google.maps.InfoWindow({
-          content: `<div><strong>End</strong><br/>${endLabel}</div>`
+          content: `<div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; padding: 8px 12px; font-size: 14px; color: #1C1C1E;"><strong style="font-weight: 600;">End</strong><br/><span style="color: #636366;">${endLabel}</span></div>`
         });
         endMarkerRef.current.addListener('click', () => {
           endInfoWindowRef.current.open(mapInstanceRef.current, endMarkerRef.current);

@@ -8,13 +8,24 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001
 function App() {
   const [startLocation, setStartLocation] = useState(null);
   const [endLocation, setEndLocation] = useState(null);
-  const [hour, setHour] = useState(12);
+  const [departureTimeEnabled, setDepartureTimeEnabled] = useState(false);
+  const [departureTime, setDepartureTime] = useState(() => {
+    // Default to current time + 1 hour
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    now.setMinutes(0);
+    return now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm
+  });
   const [fastestRoute, setFastestRoute] = useState([]);
   const [safestRoute, setSafestRoute] = useState([]);
   const [startCoords, setStartCoords] = useState(null);
   const [endCoords, setEndCoords] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [backendReady, setBackendReady] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [selectedRoute, setSelectedRoute] = useState('safest'); // Default to safest route
+  const [expandedRoute, setExpandedRoute] = useState(null); // Track which route card is expanded
 
   // Check backend status on mount
   useEffect(() => {
@@ -33,6 +44,7 @@ function App() {
                 if (pollStatus.loaded) {
                   clearInterval(pollInterval);
                   setError(null);
+                  setBackendReady(true);
                 } else if (pollStatus.error) {
                   clearInterval(pollInterval);
                   setError(`Backend error: ${pollStatus.error}`);
@@ -42,6 +54,7 @@ function App() {
             return () => clearInterval(pollInterval);
           } else if (status.loaded) {
             setError(null);
+            setBackendReady(true);
           } else if (status.error) {
             setError(`Backend error: ${status.error}`);
           }
@@ -57,23 +70,11 @@ function App() {
     checkStatus();
   }, []);
 
-  // Fetch routes when start/end/hour changes
-  useEffect(() => {
-    if (startLocation && endLocation && 
-        startLocation.lat && startLocation.lng && 
-        endLocation.lat && endLocation.lng) {
-      fetchRoutes();
-    } else {
-      setFastestRoute([]);
-      setSafestRoute([]);
-      setStartCoords(null);
-      setEndCoords(null);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startLocation, endLocation, hour]);
-
   const fetchRoutes = async () => {
-    if (!startLocation || !endLocation) return;
+    if (!startLocation || !endLocation) {
+      setError('Please select both start and end locations.');
+      return;
+    }
     
     // Validate coordinates
     if (typeof startLocation.lat !== 'number' || typeof startLocation.lng !== 'number' ||
@@ -84,13 +85,19 @@ function App() {
     
     setLoading(true);
     setError(null);
+    setShowResults(false);
     
     try {
       // Format coordinates as lat,lng (URL encode to handle special characters)
       const startStr = encodeURIComponent(`${startLocation.lat},${startLocation.lng}`);
       const endStr = encodeURIComponent(`${endLocation.lat},${endLocation.lng}`);
       
-      const url = `${API_BASE_URL}/route?start=${startStr}&end=${endStr}&hour=${hour}`;
+      // Convert departure time to ISO timestamp if enabled
+      let url = `${API_BASE_URL}/route?start=${startStr}&end=${endStr}`;
+      if (departureTimeEnabled && departureTime) {
+        const departureTimestamp = new Date(departureTime).toISOString();
+        url += `&departure=${encodeURIComponent(departureTimestamp)}`;
+      }
       console.log('Fetching route from:', url);
       
       const response = await fetch(url);
@@ -122,6 +129,8 @@ function App() {
       setSafestRoute(data.safestRoute || []);
       setStartCoords(data.start);
       setEndCoords(data.end);
+      setSelectedRoute('safest'); // Reset to safest route by default
+      setShowResults(true);
     } catch (err) {
       console.error('Error fetching routes:', err);
       setError(err.message || 'Failed to fetch routes. Please check that the backend is running.');
@@ -129,127 +138,23 @@ function App() {
       setSafestRoute([]);
       setStartCoords(null);
       setEndCoords(null);
+      setShowResults(false);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatTime = (hour) => {
-    const period = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
-    return `${displayHour}:00 ${period}`;
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    fetchRoutes();
   };
 
+  const canSearch = startLocation && endLocation && backendReady && !loading;
+
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Left Sidebar (Controls) */}
-      <div className="flex-none w-1/3 bg-blue-900 text-white p-6 overflow-y-auto">
-        <h1 className="text-3xl font-bold mb-6">SafeWalk Vancouver</h1>
-        
-        {/* Route Inputs */}
-        <div className="space-y-4 mb-6">
-          <LocationSearch
-            label="Start Location:"
-            placeholder="Search for start location..."
-            value={startLocation}
-            onChange={(location) => {
-              setStartLocation(location);
-              if (location) {
-                setStartCoords({ lat: location.lat, lng: location.lng });
-              }
-            }}
-            disabled={loading}
-          />
-          <div className="mt-4">
-            <LocationSearch
-              label="End Location:"
-              placeholder="Search for end location..."
-              value={endLocation}
-              onChange={(location) => {
-                setEndLocation(location);
-                if (location) {
-                  setEndCoords({ lat: location.lat, lng: location.lng });
-                }
-              }}
-              disabled={loading}
-            />
-          </div>
-          {startLocation && (
-            <p className="text-xs text-gray-400 mt-1">
-              Start: {startLocation.address || `${startLocation.lat?.toFixed(4)}, ${startLocation.lng?.toFixed(4)}`}
-            </p>
-          )}
-          {endLocation && (
-            <p className="text-xs text-gray-400 mt-1">
-              End: {endLocation.address || `${endLocation.lat?.toFixed(4)}, ${endLocation.lng?.toFixed(4)}`}
-            </p>
-          )}
-        </div>
-
-        {/* Time Slider */}
-        <div className="mb-6">
-          <label className="block text-sm font-semibold mb-2">
-            Time of Day: <span className="text-blue-300">{formatTime(hour)}</span>
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="23"
-            value={hour}
-            onChange={(e) => setHour(parseInt(e.target.value))}
-            className="w-full"
-          />
-        </div>
-
-        {/* Route Details Panel */}
-        <div className="mt-6">
-          <h2 className="text-xl font-semibold mb-4">Route Details</h2>
-          <div className="bg-blue-800 rounded-lg p-4 min-h-[200px]">
-            {loading && <p className="text-gray-300">Loading routes...</p>}
-            {error && <p className="text-red-400">{error}</p>}
-            {!loading && !error && (fastestRoute.length > 0 || safestRoute.length > 0) && (
-              <div>
-                {safestRoute.length > 0 && (
-                  <div className="p-4 bg-green-800 rounded-lg mb-4">
-                    <h3 className="text-lg font-bold text-green-400 mb-2">🛡️ Safest Route</h3>
-                    <p className="text-sm text-gray-300">
-                      Points: <span className="font-semibold">{safestRoute.length}</span>
-                    </p>
-                    {startCoords && endCoords && (
-                      <p className="text-xs text-gray-400 mt-1">
-                        From: {startCoords.lat?.toFixed(4)}, {startCoords.lng?.toFixed(4)}
-                      </p>
-                    )}
-                  </div>
-                )}
-                {fastestRoute.length > 0 && (
-                  <div className="p-4 bg-blue-800 rounded-lg">
-                    <h3 className="text-lg font-bold text-blue-300 mb-2">⚡ Fastest Route</h3>
-                    <p className="text-sm text-gray-300">
-                      Points: <span className="font-semibold">{fastestRoute.length}</span>
-                    </p>
-                    {startCoords && endCoords && (
-                      <p className="text-xs text-gray-400 mt-1">
-                        To: {endCoords.lat?.toFixed(4)}, {endCoords.lng?.toFixed(4)}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-            {!loading && !error && fastestRoute.length === 0 && safestRoute.length === 0 && (
-              <p className="text-gray-300">
-                {!startLocation || !endLocation 
-                  ? "Search for start and end locations to see routes." 
-                  : "Calculating routes..."}
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Area (Map) */}
-      <div className="flex-grow bg-gray-200 relative overflow-hidden" style={{ minHeight: 0 }}>
+    <div className="app-container">
+      {/* Full-screen Map Background - Edge to Edge */}
+      <div className="map-container">
         <GoogleMap
           fastestRoute={fastestRoute}
           safestRoute={safestRoute}
@@ -257,11 +162,263 @@ function App() {
           end={endCoords}
           startLabel={startLocation?.address || 'Start'}
           endLabel={endLocation?.address || 'End'}
+          selectedRoute={selectedRoute}
+          onRouteSelect={setSelectedRoute}
         />
+      </div>
+
+      {/* Frosted Glass Floating Panel */}
+      <div className="control-panel">
+        <div className="panel-header">
+          <h1 className="app-title">SafeWalk</h1>
+          <p className="app-subtitle">Vancouver Route Planner</p>
+        </div>
+
+        {error && !backendReady && (
+          <div className="alert alert-error">
+            <svg className="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="route-form">
+          <div className="form-group">
+            <LocationSearch
+              label="Start Location"
+              placeholder="Search for start location..."
+              value={startLocation}
+              onChange={(location) => {
+                setStartLocation(location);
+                if (location) {
+                  setStartCoords({ lat: location.lat, lng: location.lng });
+                } else {
+                  setStartCoords(null);
+                }
+              }}
+              disabled={loading || !backendReady}
+            />
+          </div>
+
+          <div className="form-group">
+            <LocationSearch
+              label="End Location"
+              placeholder="Search for end location..."
+              value={endLocation}
+              onChange={(location) => {
+                setEndLocation(location);
+                if (location) {
+                  setEndCoords({ lat: location.lat, lng: location.lng });
+                } else {
+                  setEndCoords(null);
+                }
+              }}
+              disabled={loading || !backendReady}
+            />
+          </div>
+
+          <div className="form-group">
+            <div className="toggle-group">
+              <label htmlFor="departure-toggle" className="toggle-label">
+                <span className="toggle-label-text">Departure Time</span>
+                <span className="toggle-label-subtitle">Specify when you'll be traveling</span>
+              </label>
+              <label className="apple-toggle">
+                <input
+                  id="departure-toggle"
+                  type="checkbox"
+                  checked={departureTimeEnabled}
+                  onChange={(e) => setDepartureTimeEnabled(e.target.checked)}
+                  disabled={loading || !backendReady}
+                />
+                <span className="toggle-slider"></span>
+              </label>
+            </div>
+            {departureTimeEnabled && (
+              <div className="datetime-wrapper">
+                <input
+                  id="departure-time"
+                  type="datetime-local"
+                  value={departureTime}
+                  onChange={(e) => setDepartureTime(e.target.value)}
+                  disabled={loading || !backendReady}
+                  className="form-input datetime-input"
+                  min={new Date().toISOString().slice(0, 16)}
+                />
+              </div>
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={!canSearch}
+            className={`find-route-btn ${!canSearch ? 'disabled' : ''} ${loading ? 'loading' : ''}`}
+          >
+            {loading ? (
+              <>
+                <svg className="spinner" viewBox="0 0 24 24">
+                  <circle className="spinner-circle" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" opacity="0.25"/>
+                  <path className="spinner-path" fill="none" stroke="currentColor" strokeWidth="4" d="M12 2 A10 10 0 0 1 22 12" strokeLinecap="round"/>
+                </svg>
+                Finding Routes...
+              </>
+            ) : (
+              <>
+                <svg className="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Find Route
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Route Results - Apple Cards */}
+        {showResults && (fastestRoute.length > 0 || safestRoute.length > 0) && !loading && (
+          <div className="route-results">
+            <h2 className="results-title">Route Options</h2>
+            
+            {fastestRoute.length > 0 && (
+              <div 
+                className={`route-card route-fastest ${selectedRoute === 'fastest' ? 'selected' : ''} ${expandedRoute === 'fastest' ? 'expanded' : ''}`}
+                onClick={(e) => {
+                  // Only toggle expansion if clicking on the card itself, not the expand button
+                  if (e.target.closest('.route-expand-btn')) {
+                    setExpandedRoute(expandedRoute === 'fastest' ? null : 'fastest');
+                  } else {
+                    setSelectedRoute('fastest');
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="route-header">
+                  <div className="route-icon route-icon-fastest">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div className="route-header-content">
+                    <div>
+                      <h3 className="route-name">Fastest Route</h3>
+                      <p className="route-points">{fastestRoute.length} waypoints</p>
+                    </div>
+                  </div>
+                  <div className={`route-selected-indicator ${selectedRoute === 'fastest' ? 'visible' : ''}`}>
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <button 
+                    className="route-expand-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedRoute(expandedRoute === 'fastest' ? null : 'fastest');
+                    }}
+                    aria-label="Toggle route details"
+                  >
+                    <svg 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                      className={`expand-icon ${expandedRoute === 'fastest' ? 'expanded' : ''}`}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+                <div className={`route-details ${expandedRoute === 'fastest' ? 'expanded' : ''}`}>
+                  <div className="route-details-content">
+                    <h4 className="route-details-title">Route Considerations</h4>
+                    <ul className="route-details-list">
+                      <li>Shorter distance for quicker travel</li>
+                      <li>May include busier streets with higher traffic</li>
+                      <li>Potentially fewer safety features (lighting, sidewalks)</li>
+                      <li>May cross high-traffic intersections</li>
+                      <li>Less optimized for pedestrian safety infrastructure</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {safestRoute.length > 0 && (
+              <div 
+                className={`route-card route-safest ${selectedRoute === 'safest' ? 'selected' : ''} ${expandedRoute === 'safest' ? 'expanded' : ''}`}
+                onClick={(e) => {
+                  // Only toggle expansion if clicking on the card itself, not the expand button
+                  if (e.target.closest('.route-expand-btn')) {
+                    setExpandedRoute(expandedRoute === 'safest' ? null : 'safest');
+                  } else {
+                    setSelectedRoute('safest');
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <div className="route-header">
+                  <div className="route-icon route-icon-safest">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </div>
+                  <div className="route-header-content">
+                    <div>
+                      <h3 className="route-name">Safest Route</h3>
+                      <p className="route-points">{safestRoute.length} waypoints</p>
+                    </div>
+                  </div>
+                  <div className={`route-selected-indicator ${selectedRoute === 'safest' ? 'visible' : ''}`}>
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <button 
+                    className="route-expand-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedRoute(expandedRoute === 'safest' ? null : 'safest');
+                    }}
+                    aria-label="Toggle route details"
+                  >
+                    <svg 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                      className={`expand-icon ${expandedRoute === 'safest' ? 'expanded' : ''}`}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+                <div className={`route-details ${expandedRoute === 'safest' ? 'expanded' : ''}`}>
+                  <div className="route-details-content">
+                    <h4 className="route-details-title">Why This Route is Safer</h4>
+                    <ul className="route-details-list">
+                      <li>Optimized for pedestrian safety infrastructure</li>
+                      <li>Better street lighting coverage</li>
+                      <li>Lower crime risk areas</li>
+                      <li>Well-maintained sidewalks and pathways</li>
+                      <li>Avoids high-traffic intersections where possible</li>
+                      <li>Prioritizes dedicated bike lanes and pedestrian zones</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {error && backendReady && (
+          <div className="alert alert-error">
+            <svg className="alert-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 export default App;
-

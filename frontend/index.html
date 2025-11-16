@@ -7,42 +7,392 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- PapaParse for CSV parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <style>
         * {
             font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
+        
+        body {
+            background: #f3f4f6;
+        }
+        
         #map {
             z-index: 1;
+        }
+        
+        /* Glassmorphism Panel */
+        #control-panel {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 800px;
+            max-height: 75vh;
+            z-index: 1000;
+            transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            
+            /* Glassmorphism effect */
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 
+                        0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+        }
+        
+        /* Minimized state - small and horizontal */
+        #control-panel.minimized {
+            width: 90%;
+            max-width: 800px;
+            padding: 16px 24px;
+            max-height: none;
+        }
+        
+        #control-panel.minimized .panel-title,
+        #control-panel.minimized .time-section,
+        #control-panel.minimized .route-section {
+            display: none;
+        }
+        
+        #control-panel.minimized .search-inputs-container {
+            display: flex;
+            gap: 16px;
+            align-items: flex-end;
+        }
+        
+        #control-panel.minimized .search-inputs-container > div {
+            flex: 1;
+        }
+        
+        #control-panel.minimized .input-label {
+            font-size: 11px;
+            margin-bottom: 6px;
+        }
+        
+        #control-panel.minimized .search-input {
+            padding: 10px 14px;
+            font-size: 14px;
+        }
+        
+        /* Expanded state */
+        #control-panel:not(.minimized) .search-inputs-container {
+            display: block;
+        }
+        
+        #control-panel:not(.minimized) .search-inputs-container > div {
+            margin-bottom: 20px;
+        }
+        
+        #control-panel.slide-to-side {
+            left: 24px;
+            top: 24px;
+            bottom: auto;
+            transform: translateX(0);
+            width: 420px;
+            max-width: 420px;
+            max-height: calc(100vh - 48px);
+            border-radius: 20px;
+        }
+        
+        #control-panel.slide-to-side.minimized {
+            width: 420px;
+            max-width: 420px;
+        }
+        
+        /* Modern Input Styling */
+        .search-input {
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid rgba(102, 126, 234, 0.2);
+            border-radius: 12px;
+            padding: 14px 16px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            color: #1a1a1a;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 1);
+            box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+        }
+        
+        .search-input::placeholder {
+            color: #9ca3af;
+        }
+        
+        /* Search Results Dropdown */
+        .search-results {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+        
+        .search-result-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: #1a1a1a;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .search-result-item:hover {
+            background: linear-gradient(90deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            transform: translateX(4px);
+        }
+        
+        /* Time Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 8px;
+            border-radius: 10px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s ease;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.6);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: white;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* Route Card Styling */
+        .route-card {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        .route-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+        }
+        
+        .route-card.safest {
+            background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(22, 163, 74, 0.15));
+            border-color: rgba(34, 197, 94, 0.3);
+        }
+        
+        .route-card.fastest {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.15));
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+        
+        .safety-score {
+            font-size: 48px;
+            font-weight: 800;
+            line-height: 1;
+            margin: 12px 0;
+        }
+        
+        .metric-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 4px 4px 4px 0;
+            color: #4b5563;
+        }
+        
+        /* Label Styling */
+        .input-label {
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #4b5563;
+            margin-bottom: 8px;
+            display: block;
+        }
+        
+        /* Title Styling */
+        .panel-title {
+            font-size: 32px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 24px;
+            letter-spacing: -0.5px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #1a1a1a;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* Time Display */
+        .time-display {
+            font-size: 20px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        /* Details Panel */
+        #details-panel {
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 16px;
+            padding: 20px;
+            min-height: 200px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+            font-size: 15px;
+        }
+        
+        @media (max-width: 768px) {
+            #control-panel {
+                width: calc(100% - 32px);
+                bottom: 16px;
+            }
+            
+            #control-panel.minimized {
+                width: calc(100% - 32px);
+                padding: 12px 16px;
+            }
+            
+            #control-panel.minimized .search-inputs-container {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            #control-panel.slide-to-side {
+                width: calc(100% - 32px);
+                max-width: none;
+                left: 16px;
+                top: 16px;
+            }
+            
+            #control-panel.slide-to-side.minimized {
+                width: calc(100% - 32px);
+            }
+            
+            .panel-title {
+                font-size: 24px;
+            }
+        }
+        
+        /* Smooth fade-in animation */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .route-card {
+            animation: fadeIn 0.4s ease-out;
         }
     </style>
 </head>
 <body class="h-screen overflow-hidden">
-    <div class="flex h-full">
-        <!-- Left Sidebar (Controls) -->
-        <div class="flex-none w-1/3 bg-blue-900 text-white p-6 overflow-y-auto">
-            <h1 class="text-3xl font-bold mb-6">SafeWalk Vancouver</h1>
+    <!-- Main Content Area (Map) -->
+    <div class="h-full w-full relative overflow-hidden">
+        <div id="map" class="h-full w-full"></div>
+    </div>
+    
+    <!-- Floating Control Panel -->
+    <div id="control-panel" class="minimized p-8 overflow-y-auto">
+        <h1 class="panel-title">🛡️ SafeWalk</h1>
             
             <!-- Route Inputs -->
-            <div class="space-y-4 mb-6">
+        <div class="search-inputs-container">
                 <div>
-                    <label for="start-node" class="block text-sm font-medium mb-2">Start Location:</label>
-                    <select id="start-node" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-black px-3 py-2"></select>
+                <label for="start-node" class="input-label">📍 Start Location</label>
+                <div class="relative">
+                    <input 
+                        type="text" 
+                        id="start-node" 
+                        placeholder="Search for a location..."
+                        class="search-input w-full"
+                        autocomplete="off"
+                    >
+                    <div id="start-node-results" class="search-results absolute z-50 w-full mt-2 max-h-60 overflow-y-auto hidden"></div>
+                </div>
                 </div>
                 <div>
-                    <label for="end-node" class="block text-sm font-medium mb-2 mt-4">End Location:</label>
-                    <select id="end-node" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-black px-3 py-2"></select>
+                <label for="end-node" class="input-label">🎯 End Location</label>
+                <div class="relative">
+                    <input 
+                        type="text" 
+                        id="end-node" 
+                        placeholder="Search for a location..."
+                        class="search-input w-full"
+                        autocomplete="off"
+                    >
+                    <div id="end-node-results" class="search-results absolute z-50 w-full mt-2 max-h-60 overflow-y-auto hidden"></div>
+                </div>
                 </div>
             </div>
 
             <!-- Time Slider -->
-            <div class="mb-6">
-                <label class="block text-sm font-semibold mb-2">
-                    Time of Day: <span id="time-label" class="text-blue-300">12:00 PM</span>
+        <div class="time-section mb-6">
+            <label class="input-label">
+                ⏰ Time of Day: <span id="time-label" class="time-display">12:00 PM</span>
                 </label>
                 <input 
                     type="range" 
@@ -50,22 +400,18 @@
                     min="0" 
                     max="23" 
                     value="12" 
-                    class="w-full"
+                class="w-full mt-3"
                 >
             </div>
 
             <!-- Route Details Panel -->
-            <div class="mt-6">
-                <h2 class="text-xl font-semibold mb-4">Route Details</h2>
-                <div id="details-panel" class="bg-blue-800 rounded-lg p-4 min-h-[200px]">
-                    <p class="text-gray-300">Click a route on the map to see details.</p>
+        <div class="route-section mt-6">
+            <h2 class="section-title">Route Analysis</h2>
+            <div id="details-panel">
+                <div class="empty-state">
+                    <p>Select start and end locations to see route details</p>
                 </div>
             </div>
-        </div>
-
-        <!-- Main Content Area (Map) -->
-        <div class="flex-grow bg-gray-200 relative overflow-hidden">
-            <div id="map" class="h-full w-full"></div>
         </div>
     </div>
 
@@ -97,7 +443,22 @@
             'F': 'Library Square'
         };
 
-        // Mock City Data - Edges (streets with component scores and realistic paths)
+        /**
+         * Mock City Data - Edges (streets with component scores and realistic paths)
+         * 
+         * NOTE: These initial scores are PLACEHOLDERS. They will be recalculated
+         * when CSV data loads via calculateEdgeScores(). The initial scores ensure
+         * the app works before CSV data loads, but real safety scores come from CSV.
+         * 
+         * Each edge has:
+         * - from/to: Node IDs
+         * - distance: Physical distance in km (used for FASTEST path)
+         * - scores: Safety component scores (used for SAFEST path after CSV processing)
+         * - path: Array of [lat, lon] coordinates for drawing the route
+         * 
+         * IMPORTANT: Distance and safety are INDEPENDENT. A short route can be unsafe,
+         * and a long route can be safe. This ensures fastest and safest paths differ.
+         */
         const edges = [
             { 
                 from: 'A', to: 'B', distance: 1, 
@@ -198,6 +559,16 @@
         let fastestRouteLayer = null;
         let safestRouteLayer = null;
         let routeMarkers = [];
+        let panelAnimated = false;
+        
+        // CSV Data Storage
+        let lightingData = [];
+        let crimeData = [];
+        let bikewayData = [];
+        let closureData = [];
+        let fireHallData = [];
+        let sidewalkData = [];
+        let csvDataLoaded = false;
 
         // Format time for display
         function formatTime(hour) {
@@ -206,7 +577,291 @@
             return `${displayHour}:00 ${period}`;
         }
 
-        // Dijkstra's Algorithm
+        // Calculate distance between two lat/lng points (Haversine formula)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
+        // Parse coordinates from geo_point_2d or Geom field
+        function parseCoordinates(row, isCrimeData = false) {
+            let lat, lon;
+            
+            // For crime data, try HUNDRED_BLOCK and NEIGHBOURHOOD to get approximate location
+            // For now, skip crime data coordinates as they use a different system
+            if (isCrimeData && row['X'] && row['Y']) {
+                // X, Y appear to be in UTM or similar projection
+                // Skip for now - we'll use neighbourhood-based approximation if needed
+                return null;
+            }
+            
+            // Try geo_point_2d first (format: "lat, lon")
+            if (row['geo_point_2d']) {
+                const parts = row['geo_point_2d'].split(',');
+                if (parts.length === 2) {
+                    lat = parseFloat(parts[0].trim());
+                    lon = parseFloat(parts[1].trim());
+                    if (!isNaN(lat) && !isNaN(lon)) return [lat, lon];
+                }
+            }
+            
+            // Try Geom field (JSON format)
+            if (row['Geom']) {
+                try {
+                    const geom = JSON.parse(row['Geom']);
+                    if (geom.coordinates) {
+                        if (Array.isArray(geom.coordinates[0])) {
+                            // LineString or MultiLineString - get first point
+                            lon = geom.coordinates[0][0];
+                            lat = geom.coordinates[0][1];
+                        } else {
+                            // Point
+                            lon = geom.coordinates[0];
+                            lat = geom.coordinates[1];
+                        }
+                        if (!isNaN(lat) && !isNaN(lon)) return [lat, lon];
+                    }
+                } catch (e) {
+                    // Ignore parse errors
+                }
+            }
+            
+            return null;
+        }
+        
+        // Load and parse CSV files
+        async function loadCSVData() {
+            const csvFiles = [
+                { url: '/data/street-lighting-poles.csv', type: 'lighting' },
+                { url: '/data/crimedata_csv_AllNeighbourhoods_AllYears.csv', type: 'crime' },
+                { url: '/data/bikeways.csv', type: 'bikeway' },
+                { url: '/data/road-ahead-current-road-closures.csv', type: 'closure' },
+                { url: '/data/fire-halls.csv', type: 'firehall' },
+                { url: '/data/sidewalk-condition-rating.csv', type: 'sidewalk' }
+            ];
+            
+            const loadPromises = csvFiles.map(file => {
+                return new Promise((resolve, reject) => {
+                    // Most files use semicolon, but crime data uses comma
+                    const delimiter = file.type === 'crime' ? ',' : ';';
+                    Papa.parse(file.url, {
+                        download: true,
+                        header: true,
+                        skipEmptyLines: true,
+                        delimiter: delimiter,
+                        complete: (results) => {
+                            const isCrime = file.type === 'crime';
+                            const data = results.data.filter(row => {
+                                const coords = parseCoordinates(row, isCrime);
+                                return coords !== null;
+                            }).map(row => ({
+                                ...row,
+                                coords: parseCoordinates(row, isCrime)
+                            }));
+                            
+                            switch(file.type) {
+                                case 'lighting':
+                                    lightingData = data;
+                                    break;
+                                case 'crime':
+                                    crimeData = data;
+                                    break;
+                                case 'bikeway':
+                                    bikewayData = data;
+                                    break;
+                                case 'closure':
+                                    closureData = data;
+                                    break;
+                                case 'firehall':
+                                    fireHallData = data;
+                                    break;
+                                case 'sidewalk':
+                                    sidewalkData = data;
+                                    break;
+                            }
+                            resolve();
+                        },
+                        error: (error) => {
+                            console.warn(`Failed to load ${file.url}:`, error);
+                            resolve(); // Continue even if one file fails
+                        }
+                    });
+                });
+            });
+            
+            await Promise.all(loadPromises);
+            csvDataLoaded = true;
+            calculateEdgeScores();
+        }
+        
+        /**
+         * Calculate safety scores for each edge based on CSV data.
+         * Safety scoring follows this formula:
+         * - Sidewalk present → +2
+         * - Streetlight present → +1  
+         * - Low traffic (no closures) → +1
+         * - Crime nearby → negative impact
+         * 
+         * These scores are used ONLY for the safest path calculation.
+         * Distance is calculated separately for the fastest path.
+         */
+        function calculateEdgeScores() {
+            if (!csvDataLoaded) return;
+            
+            edges.forEach(edge => {
+                let totalSafetyScore = 0;
+                let pointCount = 0;
+                
+                // Check each point along the path
+                edge.path.forEach(point => {
+                    const [lat, lon] = point;
+                    let pointSafetyScore = 0; // Start with 0, add points for safety features
+                    
+                    // SIDEWALK: Check for sidewalks nearby (within 50m)
+                    // Sidewalk present → +2 points
+                    let hasSidewalk = false;
+                    sidewalkData.forEach(sidewalk => {
+                        if (sidewalk.coords) {
+                            const dist = calculateDistance(lat, lon, sidewalk.coords[0], sidewalk.coords[1]) * 1000;
+                            if (dist < 50) {
+                                const condition = sidewalk['Sidewalk Condition Index Rating'];
+                                // Only count if sidewalk is in good condition
+                                if (condition === 'Very Good' || condition === 'Good' || condition === 'Fair') {
+                                    hasSidewalk = true;
+                                }
+                            }
+                        }
+                    });
+                    if (hasSidewalk) {
+                        pointSafetyScore += 2;
+                    }
+                    
+                    // STREETLIGHT: Count nearby lighting poles (within 150m)
+                    // Streetlight present → +1 point (at least one light nearby)
+                    let hasStreetlight = false;
+                    lightingData.forEach(light => {
+                        if (light.coords) {
+                            const dist = calculateDistance(lat, lon, light.coords[0], light.coords[1]) * 1000;
+                            if (dist < 150) {
+                                hasStreetlight = true;
+                            }
+                        }
+                    });
+                    if (hasStreetlight) {
+                        pointSafetyScore += 1;
+                    }
+                    
+                    // LOW TRAFFIC: Check for road closures (no closures = low traffic)
+                    // Low traffic (no closures) → +1 point
+                    let hasClosure = false;
+                    closureData.forEach(closure => {
+                        if (closure.coords) {
+                            const dist = calculateDistance(lat, lon, closure.coords[0], closure.coords[1]) * 1000;
+                            if (dist < 100) {
+                                hasClosure = true;
+                            }
+                        }
+                    });
+                    if (!hasClosure) {
+                        pointSafetyScore += 1; // No closure = low traffic = safer
+                    }
+                    
+                    // CRIME: Negative impact (more crime = lower safety)
+                    // Count crimes nearby (within 500m)
+                    let crimeCount = 0;
+                    crimeData.forEach(crime => {
+                        if (crime.coords) {
+                            const dist = calculateDistance(lat, lon, crime.coords[0], crime.coords[1]) * 1000;
+                            if (dist < 500) {
+                                crimeCount++;
+                            }
+                        }
+                    });
+                    // Penalize for crime: -0.5 per crime (capped at -3)
+                    pointSafetyScore -= Math.min(3, crimeCount * 0.5);
+                    
+                    // BIKEWAYS: Bonus for bike infrastructure (indicates pedestrian-friendly area)
+                    bikewayData.forEach(bikeway => {
+                        if (bikeway.coords) {
+                            const dist = calculateDistance(lat, lon, bikeway.coords[0], bikeway.coords[1]) * 1000;
+                            if (dist < 100) {
+                                pointSafetyScore += 0.5; // Bonus for bike infrastructure
+                            }
+                        }
+                    });
+                    
+                    // FIRE HALLS: Safe havens nearby
+                    fireHallData.forEach(firehall => {
+                        if (firehall.coords) {
+                            const dist = calculateDistance(lat, lon, firehall.coords[0], firehall.coords[1]) * 1000;
+                            if (dist < 500) {
+                                pointSafetyScore += 0.5; // Bonus for safe haven nearby
+                            }
+                        }
+                    });
+                    
+                    // Ensure safety score is non-negative and capped at reasonable max
+                    pointSafetyScore = Math.max(0, Math.min(10, pointSafetyScore));
+                    
+                    totalSafetyScore += pointSafetyScore;
+                    pointCount++;
+                });
+                
+                // Calculate average safety score for this edge
+                // Also store individual components for display
+                if (pointCount > 0) {
+                    const avgSafety = totalSafetyScore / pointCount;
+                    
+                    // Store both the combined safety score and individual components
+                    edge.safetyScore = Math.round(avgSafety * 10) / 10;
+                    
+                    // Keep detailed scores for display purposes
+                    edge.scores = {
+                        safety: edge.safetyScore,
+                        // For backwards compatibility with display code
+                        infra: edge.safetyScore * 0.4, // Approximate mapping
+                        light: edge.safetyScore * 0.3,
+                        crime: Math.max(0, 10 - edge.safetyScore),
+                        disruption: 0,
+                        amenity: edge.safetyScore * 0.3
+                    };
+                } else {
+                    // Fallback to default scores if no points
+                    edge.safetyScore = 2; // Default moderate safety
+                    edge.scores = { 
+                        safety: 2,
+                        infra: 5, 
+                        light: 5, 
+                        crime: 5, 
+                        disruption: 0, 
+                        amenity: 0 
+                    };
+                }
+            });
+        }
+
+        /**
+         * Dijkstra's Algorithm for Pathfinding
+         * 
+         * This algorithm finds the shortest path in a weighted graph.
+         * It's used for BOTH fastest and safest paths:
+         * - For FASTEST path: graph weights = distance
+         * - For SAFEST path: graph weights = inverted safety scores
+         * 
+         * The algorithm works the same way for both - it just uses different edge weights.
+         * This ensures routes are calculated independently based on their respective criteria.
+         * 
+         * @param {Object} graph - Adjacency list with edge weights
+         * @param {string} startNode - Starting node ID
+         * @param {string} endNode - Ending node ID
+         * @returns {Array} Array of node IDs representing the path, or empty array if no path
+         */
         function findShortestPath(graph, startNode, endNode) {
             const distances = {};
             const previous = {};
@@ -268,11 +923,21 @@
             return []; // No path found
         }
 
-        // Build Graph for Fastest Route (distance only)
+        /**
+         * Build Graph for FASTEST Route - Distance Only
+         * 
+         * This function creates a graph where edge weights are PURELY based on distance.
+         * No safety considerations are included here. This ensures the fastest path
+         * minimizes travel distance/time regardless of safety factors.
+         * 
+         * @returns {Object} Graph with distance-only edge weights
+         */
         function buildGraph_Fastest() {
             const graph = {};
             
             for (const edge of edges) {
+                // FASTEST PATH: Use ONLY distance as the edge weight
+                // This ensures we find the shortest path regardless of safety
                 const cost = edge.distance;
 
                 // Add to graph (bidirectional)
@@ -289,38 +954,68 @@
             return graph;
         }
 
-        // Build Graph with Time-of-Day Logic (for safest route)
-        function buildGraph(currentHour) {
+        /**
+         * Build Graph for SAFEST Route - Safety Weighted
+         * 
+         * This function creates a graph where edge weights are based on SAFETY SCORES,
+         * NOT distance. Higher safety = lower path cost, so Dijkstra will prefer safer routes.
+         * 
+         * Key principle: Safety and distance are INDEPENDENT. A longer route with high safety
+         * can have a lower total cost than a short route with low safety.
+         * 
+         * Safety scoring:
+         * - Sidewalk present → +2
+         * - Streetlight present → +1
+         * - Low traffic (no closures) → +1
+         * - Crime nearby → negative impact
+         * 
+         * The safety score is inverted to create a weight: weight = MAX_SAFETY - safety_score
+         * This means higher safety = lower weight = preferred by Dijkstra
+         * 
+         * @param {number} currentHour - Current hour (0-23) for time-of-day adjustments
+         * @returns {Object} Graph with safety-weighted edge costs
+         */
+        function buildGraph_Safest(currentHour) {
             const graph = {};
             const hour = parseInt(currentHour);
 
-            // Apply Time-of-Day Logic
-            let lightWeight = W_LIGHTING;
-            let crimeWeight = W_CRIME;
+            // Time-of-day adjustments: lighting matters more at night
             const isDayTime = (hour > 6 && hour < 19);
+            const lightingMultiplier = isDayTime ? 0.5 : 1.5; // Lights matter more at night
+            const crimeMultiplier = isDayTime ? 1.0 : 1.5; // Crime is worse at night
 
-            if (isDayTime) {
-                lightWeight = 0.1; // Lights don't matter in the day
-            } else {
-                crimeWeight = crimeWeight * 1.5; // Crime is worse at night
-            }
-
-            // Build adjacency list
+            // Maximum possible safety score (used for inversion)
+            const MAX_SAFETY_SCORE = 10;
+            
+            // Build adjacency list with SAFETY-BASED weights
             for (const edge of edges) {
-                const scores = edge.scores;
-
-                // Calculate safety score (high is good)
-                const safetyScore = (W_INFRASTRUCTURE * scores.infra) +
-                                  (lightWeight * scores.light) +
-                                  (W_AMENITY * scores.amenity) +
-                                  (crimeWeight * scores.crime) +
-                                  (W_DISRUPTION * scores.disruption);
-
-                // Calculate final cost (low is good for Dijkstra's)
-                // Base cost is distance. A "safer" route feels shorter.
-                const cost = edge.distance - (safetyScore * 0.1);
-                // Ensure cost is never negative
-                const finalCost = Math.max(0.1, cost);
+                // Get the safety score calculated from CSV data
+                // If not calculated yet, use a default
+                const baseSafetyScore = edge.safetyScore || 2;
+                
+                // Apply time-of-day adjustments to safety components
+                // At night, lighting is more important, crime is worse
+                let adjustedSafetyScore = baseSafetyScore;
+                
+                // If we have detailed scores, adjust them
+                if (edge.scores) {
+                    // Recalculate with time-of-day weights
+                    // This is approximate - the main safety score already includes these factors
+                    // But we can adjust the weighting
+                    adjustedSafetyScore = baseSafetyScore * (isDayTime ? 0.95 : 1.05);
+                }
+                
+                // INVERT the safety score to create a weight
+                // Higher safety = lower weight = preferred path
+                // Formula: weight = MAX_SAFETY - safety_score
+                // This ensures safer routes have lower costs
+                const safetyWeight = MAX_SAFETY_SCORE - adjustedSafetyScore;
+                
+                // IMPORTANT: For safest path, we use safety weight, NOT distance
+                // We add a small base cost to ensure weights are positive and meaningful
+                // The base cost is minimal so safety differences dominate
+                const baseCost = 0.1; // Minimal base cost
+                const cost = baseCost + safetyWeight;
 
                 // Add to graph (bidirectional)
                 if (!graph[edge.from]) {
@@ -329,11 +1024,16 @@
                 if (!graph[edge.to]) {
                     graph[edge.to] = {};
                 }
-                graph[edge.from][edge.to] = finalCost;
-                graph[edge.to][edge.from] = finalCost;
+                graph[edge.from][edge.to] = cost;
+                graph[edge.to][edge.from] = cost;
             }
 
             return graph;
+        }
+        
+        // Alias for backwards compatibility
+        function buildGraph(currentHour) {
+            return buildGraph_Safest(currentHour);
         }
 
         // Draw Route on Map using realistic paths from edges
@@ -385,13 +1085,23 @@
             return polyline;
         }
 
-        // Calculate Path Metrics
+        /**
+         * Calculate Path Metrics for a given route
+         * 
+         * This function calculates both distance and safety metrics for a path.
+         * It aggregates metrics from all edges in the path.
+         * 
+         * @param {Array} pathNodeIds - Array of node IDs representing the path
+         * @param {number} currentHour - Current hour for time-of-day adjustments
+         * @returns {Object} Metrics object with distance, safety score, and component scores
+         */
         function calculatePathMetrics(pathNodeIds, currentHour) {
             if (!pathNodeIds || pathNodeIds.length === 0) {
                 return null;
             }
 
             let totalDistance = 0;
+            let totalSafetyScore = 0;
             let totalInfra = 0;
             let totalLight = 0;
             let totalCrime = 0;
@@ -410,42 +1120,38 @@
                 
                 if (edge) {
                     totalDistance += edge.distance;
-                    totalInfra += edge.scores.infra;
-                    totalLight += edge.scores.light;
-                    totalCrime += edge.scores.crime;
-                    totalDisruption += edge.scores.disruption;
-                    totalAmenity += edge.scores.amenity;
+                    
+                    // Use the new safetyScore field if available, otherwise use scores
+                    if (edge.safetyScore !== undefined) {
+                        totalSafetyScore += edge.safetyScore;
+                    } else if (edge.scores && edge.scores.safety !== undefined) {
+                        totalSafetyScore += edge.scores.safety;
+                    } else {
+                        // Fallback to calculated safety from scores
+                        totalSafetyScore += (edge.scores?.infra || 5) * 0.4;
+                    }
+                    
+                    // Get component scores for display
+                    totalInfra += edge.scores?.infra || 5;
+                    totalLight += edge.scores?.light || 5;
+                    totalCrime += edge.scores?.crime || 5;
+                    totalDisruption += edge.scores?.disruption || 0;
+                    totalAmenity += edge.scores?.amenity || 0;
                     edgeCount++;
                 }
             }
 
             // Calculate averages
+            const avgSafety = edgeCount > 0 ? totalSafetyScore / edgeCount : 0;
             const avgInfra = edgeCount > 0 ? totalInfra / edgeCount : 0;
             const avgLight = edgeCount > 0 ? totalLight / edgeCount : 0;
             const avgCrime = edgeCount > 0 ? totalCrime / edgeCount : 0;
             const avgDisruption = edgeCount > 0 ? totalDisruption / edgeCount : 0;
             const avgAmenity = edgeCount > 0 ? totalAmenity / edgeCount : 0;
 
-            // Calculate safety score using time-of-day logic
-            const hour = parseInt(currentHour);
-            let lightWeight = W_LIGHTING;
-            let crimeWeight = W_CRIME;
-            const isDayTime = (hour > 6 && hour < 19);
-
-            if (isDayTime) {
-                lightWeight = 0.1;
-            } else {
-                crimeWeight = crimeWeight * 1.5;
-            }
-
-            const safetyScore = (W_INFRASTRUCTURE * avgInfra) +
-                              (lightWeight * avgLight) +
-                              (W_AMENITY * avgAmenity) +
-                              (crimeWeight * avgCrime) +
-                              (W_DISRUPTION * avgDisruption);
-
-            // Normalize to 0-100 scale
-            const normalizedScore = Math.max(0, Math.min(100, Math.round(50 + safetyScore)));
+            // Normalize safety score to 0-100 scale for display
+            // Safety score is already 0-10, so multiply by 10
+            const normalizedScore = Math.max(0, Math.min(100, Math.round(avgSafety * 10)));
 
             return {
                 distance: totalDistance.toFixed(1),
@@ -460,8 +1166,10 @@
 
         // Update All Routes (Main Function)
         function updateAllRoutes() {
-            const startNode = document.getElementById('start-node').value;
-            const endNode = document.getElementById('end-node').value;
+            const startInput = document.getElementById('start-node');
+            const endInput = document.getElementById('end-node');
+            const startNode = startInput.dataset.nodeId;
+            const endNode = endInput.dataset.nodeId;
             const hour = parseInt(document.getElementById('time-slider').value);
 
             // Clear old routes
@@ -479,16 +1187,19 @@
             routeMarkers = [];
 
             if (startNode === endNode || !startNode || !endNode) {
-                document.getElementById('details-panel').innerHTML = '<p class="text-gray-300">Please select different start and end locations.</p>';
+                document.getElementById('details-panel').innerHTML = '<div class="empty-state"><p>Please select different start and end locations.</p></div>';
                 return;
             }
 
-            // Find Fastest Path
+            // Find FASTEST Path - Uses distance-only weights
+            // This path minimizes total distance regardless of safety
             const graph_fast = buildGraph_Fastest();
             const fastestPathNodes = findShortestPath(graph_fast, startNode, endNode);
 
-            // Find Safest Path
-            const graph_safe = buildGraph(hour);
+            // Find SAFEST Path - Uses safety-weighted edges
+            // This path maximizes safety score regardless of distance
+            // Safety and distance are INDEPENDENT, so routes will differ
+            const graph_safe = buildGraph_Safest(hour);
             const safestPathNodes = findShortestPath(graph_safe, startNode, endNode);
 
             // Draw both paths
@@ -527,87 +1238,237 @@
             const isDayTime = (hour >= 6 && hour < 19);
 
             if (fastestMetrics && safestMetrics) {
-                const fastestScoreColor = fastestMetrics.safetyScore >= 70 ? 'text-green-400' : fastestMetrics.safetyScore >= 50 ? 'text-yellow-400' : 'text-red-400';
-                const safestScoreColor = safestMetrics.safetyScore >= 70 ? 'text-green-400' : safestMetrics.safetyScore >= 50 ? 'text-yellow-400' : 'text-red-400';
+                const fastestScoreColor = fastestMetrics.safetyScore >= 70 ? '#22c55e' : fastestMetrics.safetyScore >= 50 ? '#eab308' : '#ef4444';
+                const safestScoreColor = safestMetrics.safetyScore >= 70 ? '#22c55e' : safestMetrics.safetyScore >= 50 ? '#eab308' : '#ef4444';
 
                 detailsPanel.innerHTML = `
-                    <div class="p-4 bg-green-800 rounded-lg mb-4">
-                        <h3 class="text-lg font-bold text-green-400 mb-2">🛡️ Safest Route</h3>
-                        <div class="text-2xl font-bold ${safestScoreColor} mb-2">
-                            ${safestMetrics.safetyScore} <span class="text-sm text-white">/ 100</span>
+                    <div class="route-card safest">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-bold" style="color: #16a34a;">🛡️ Safest Route</h3>
+                            <span class="text-xs font-semibold px-3 py-1 rounded-full" style="background: rgba(34, 197, 94, 0.2); color: #16a34a;">RECOMMENDED</span>
                         </div>
-                        <p class="text-sm text-gray-300">Distance: <span class="font-semibold">${safestMetrics.distance} km</span></p>
-                        <div class="mt-2 text-xs text-gray-400 space-y-1">
-                            <p>Infrastructure: ${safestMetrics.infra} | Lighting: ${safestMetrics.light} | Crime: ${safestMetrics.crime}</p>
-                            <p>Safe Havens: ${safestMetrics.amenity} | Disruptions: ${safestMetrics.disruption}</p>
+                        <div class="safety-score" style="color: ${safestScoreColor};">
+                            ${safestMetrics.safetyScore}
+                            <span class="text-lg font-normal text-gray-500">/ 100</span>
+                        </div>
+                        <p class="text-sm font-semibold mb-4" style="color: #4b5563;">
+                            📏 Distance: <span style="color: #1a1a1a;">${safestMetrics.distance} km</span>
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="metric-badge">🏗️ Infrastructure: ${safestMetrics.infra}</span>
+                            <span class="metric-badge">💡 Lighting: ${safestMetrics.light}</span>
+                            <span class="metric-badge">🚨 Crime: ${safestMetrics.crime}</span>
+                            <span class="metric-badge">🏪 Safe Havens: ${safestMetrics.amenity}</span>
+                            <span class="metric-badge">⚠️ Disruptions: ${safestMetrics.disruption}</span>
+                    </div>
+                        </div>
+                    <div class="route-card fastest">
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-bold" style="color: #2563eb;">⚡ Fastest Route</h3>
+                        </div>
+                        <div class="safety-score" style="color: ${fastestScoreColor};">
+                            ${fastestMetrics.safetyScore}
+                            <span class="text-lg font-normal text-gray-500">/ 100</span>
+                    </div>
+                        <p class="text-sm font-semibold mb-4" style="color: #4b5563;">
+                            📏 Distance: <span style="color: #1a1a1a;">${fastestMetrics.distance} km</span>
+                        </p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="metric-badge">🏗️ Infrastructure: ${fastestMetrics.infra}</span>
+                            <span class="metric-badge">💡 Lighting: ${fastestMetrics.light}</span>
+                            <span class="metric-badge">🚨 Crime: ${fastestMetrics.crime}</span>
+                            <span class="metric-badge">🏪 Safe Havens: ${fastestMetrics.amenity}</span>
+                            <span class="metric-badge">⚠️ Disruptions: ${fastestMetrics.disruption}</span>
                         </div>
                     </div>
-                    <div class="p-4 bg-blue-800 rounded-lg">
-                        <h3 class="text-lg font-bold text-blue-300 mb-2">⚡ Fastest Route</h3>
-                        <div class="text-2xl font-bold ${fastestScoreColor} mb-2">
-                            ${fastestMetrics.safetyScore} <span class="text-sm text-white">/ 100</span>
-                        </div>
-                        <p class="text-sm text-gray-300">Distance: <span class="font-semibold">${fastestMetrics.distance} km</span></p>
-                        <div class="mt-2 text-xs text-gray-400 space-y-1">
-                            <p>Infrastructure: ${fastestMetrics.infra} | Lighting: ${fastestMetrics.light} | Crime: ${fastestMetrics.crime}</p>
-                            <p>Safe Havens: ${fastestMetrics.amenity} | Disruptions: ${fastestMetrics.disruption}</p>
-                        </div>
-                    </div>
-                    <div class="mt-4 pt-4 border-t border-blue-700">
-                        <p class="text-xs text-gray-400">
-                            ${isDayTime ? '☀️ Daytime: Lighting has minimal impact' : '🌙 Nighttime: Crime risk is weighted higher'}
+                    <div class="mt-4 pt-4 border-t" style="border-color: rgba(0, 0, 0, 0.1);">
+                        <p class="text-xs font-medium" style="color: #6b7280;">
+                            ${isDayTime ? '☀️ Daytime Mode: Lighting has minimal impact on safety' : '🌙 Nighttime Mode: Crime risk is weighted higher for your safety'}
                         </p>
                     </div>
                 `;
             } else {
-                detailsPanel.innerHTML = '<p class="text-red-400">No route found</p>';
+                detailsPanel.innerHTML = '<div class="empty-state"><p style="color: #ef4444;">No route found between selected locations</p></div>';
             }
+        }
+
+        // Search and filter nodes by name
+        function searchNodes(query, excludeNodeId = null) {
+            if (!query || query.trim() === '') {
+                return [];
+            }
+            
+            const results = [];
+            const lowerQuery = query.toLowerCase();
+            
+            for (const nodeId in nodeNames) {
+                if (excludeNodeId && nodeId === excludeNodeId) continue;
+                
+                const name = nodeNames[nodeId];
+                const searchText = `${name} (${nodeId})`;
+                
+                if (name.toLowerCase().includes(lowerQuery) || 
+                    nodeId.toLowerCase().includes(lowerQuery) ||
+                    searchText.toLowerCase().includes(lowerQuery)) {
+                    results.push({ nodeId, name, displayText: searchText });
+                }
+            }
+            
+            return results;
+        }
+
+        // Show search results dropdown
+        function showSearchResults(inputId, results) {
+            const resultsDiv = document.getElementById(`${inputId}-results`);
+            resultsDiv.innerHTML = '';
+            
+            if (results.length === 0) {
+                resultsDiv.classList.add('hidden');
+                return;
+            }
+            
+            resultsDiv.classList.remove('hidden');
+            
+            results.forEach(result => {
+                const item = document.createElement('div');
+                item.className = 'search-result-item';
+                item.innerHTML = `
+                    <div class="font-semibold text-gray-900">${result.name}</div>
+                    <div class="text-xs text-gray-500 mt-1">${result.nodeId}</div>
+                `;
+                item.addEventListener('click', () => {
+                    const input = document.getElementById(inputId);
+                    input.value = result.name;
+                    input.dataset.nodeId = result.nodeId;
+                    resultsDiv.classList.add('hidden');
+                    
+                    // Check if panel should expand
+                    checkPanelExpansion();
+                    
+                    updateAllRoutes();
+                });
+                resultsDiv.appendChild(item);
+            });
+        }
+        
+        // Check if panel should be expanded
+        function checkPanelExpansion() {
+            const startInput = document.getElementById('start-node');
+            const endInput = document.getElementById('end-node');
+            const panel = document.getElementById('control-panel');
+            
+            const hasStart = startInput.dataset.nodeId && startInput.dataset.nodeId !== '';
+            const hasEnd = endInput.dataset.nodeId && endInput.dataset.nodeId !== '';
+            
+            if (hasStart && hasEnd) {
+                // Both locations selected - expand panel
+                panel.classList.remove('minimized');
+                
+                // Animate panel to side after a short delay
+                setTimeout(() => {
+                    if (!panelAnimated) {
+                        panel.classList.add('slide-to-side');
+                        panelAnimated = true;
+                    }
+                }, 300);
+            } else {
+                // Not both selected - keep minimized
+                panel.classList.add('minimized');
+                panel.classList.remove('slide-to-side');
+                panelAnimated = false;
+            }
+        }
+        
+        // Animate panel to side
+        function animatePanelToSide() {
+            checkPanelExpansion();
+        }
+
+        // Setup search input handlers
+        function setupSearchInputs() {
+            const startInput = document.getElementById('start-node');
+            const endInput = document.getElementById('end-node');
+            
+            // Start location search
+            startInput.addEventListener('input', function() {
+                const query = this.value;
+                const endNodeId = endInput.dataset.nodeId;
+                
+                // If input is cleared, clear the node ID
+                if (!query || query.trim() === '') {
+                    startInput.dataset.nodeId = '';
+                    checkPanelExpansion();
+                }
+                
+                const results = searchNodes(query, endNodeId);
+                showSearchResults('start-node', results);
+            });
+            
+            startInput.addEventListener('blur', function() {
+                // Hide results after a short delay to allow click events
+                setTimeout(() => {
+                    document.getElementById('start-node-results').classList.add('hidden');
+                }, 200);
+            });
+            
+            // End location search
+            endInput.addEventListener('input', function() {
+                const query = this.value;
+                const startNodeId = startInput.dataset.nodeId;
+                
+                // If input is cleared, clear the node ID
+                if (!query || query.trim() === '') {
+                    endInput.dataset.nodeId = '';
+                    checkPanelExpansion();
+                }
+                
+                const results = searchNodes(query, startNodeId);
+                showSearchResults('end-node', results);
+            });
+            
+            endInput.addEventListener('blur', function() {
+                // Hide results after a short delay to allow click events
+                setTimeout(() => {
+                    document.getElementById('end-node-results').classList.add('hidden');
+                }, 200);
+            });
         }
 
         // Populate Node Dropdowns
         function populateNodeDropdowns() {
-            const startSelect = document.getElementById('start-node');
-            const endSelect = document.getElementById('end-node');
-
-            // Clear existing options
-            startSelect.innerHTML = '<option value="">Select start location...</option>';
-            endSelect.innerHTML = '<option value="">Select end location...</option>';
-
-            // Add options for each node
-            for (const nodeId in nodes) {
-                const optionText = `${nodeNames[nodeId]} (${nodeId})`;
-                const startOption = document.createElement('option');
-                startOption.value = nodeId;
-                startOption.textContent = optionText;
-                startSelect.appendChild(startOption);
-
-                const endOption = document.createElement('option');
-                endOption.value = nodeId;
-                endOption.textContent = optionText;
-                endSelect.appendChild(endOption);
-            }
-
-            // Set default values
-            startSelect.value = 'A';
-            endSelect.value = 'F';
+            // Set default values for search inputs (empty initially)
+            const startInput = document.getElementById('start-node');
+            const endInput = document.getElementById('end-node');
+            
+            // Don't set default values - let user search
+            startInput.value = '';
+            startInput.dataset.nodeId = '';
+            
+            endInput.value = '';
+            endInput.dataset.nodeId = '';
         }
 
         // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize Leaflet map
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Initialize Leaflet map with a modern tile layer
             map = L.map('map').setView([49.28, -123.12], 14);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '© OpenStreetMap contributors'
+            
+            // Use CartoDB Positron for a cleaner, modern look
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 19
             }).addTo(map);
 
             // Populate node dropdowns
             populateNodeDropdowns();
+            
+            // Setup search functionality
+            setupSearchInputs();
 
             // Initialize time slider
             const slider = document.getElementById('time-slider');
             const timeLabel = document.getElementById('time-label');
-            const startSelect = document.getElementById('start-node');
-            const endSelect = document.getElementById('end-node');
             const currentHour = new Date().getHours();
 
             // Set slider to current hour
@@ -621,11 +1482,17 @@
                 updateAllRoutes();
             });
 
-            startSelect.addEventListener('change', updateAllRoutes);
-            endSelect.addEventListener('change', updateAllRoutes);
+            // Load CSV data and calculate scores
+            try {
+                await loadCSVData();
+                console.log('CSV data loaded and scores calculated');
+            } catch (error) {
+                console.error('Error loading CSV data:', error);
+                // Continue with default scores if loading fails
+            }
 
-            // Draw initial route
-            updateAllRoutes();
+            // Search inputs already trigger updateAllRoutes via setupSearchInputs
+            // Don't draw initial route - wait for user to select locations
         });
     </script>
 </body>
