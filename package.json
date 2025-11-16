@@ -4,7 +4,9 @@
   "description": "Pedestrian/cyclist safety-first routing app",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node start-server.js",
+    "dev": "node start-server.js"
   },
   "keywords": [
     "routing",
@@ -13,6 +15,8 @@
     "cyclist"
   ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
 }
-
