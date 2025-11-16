@@ -19,31 +19,31 @@ This project uses Google Maps JavaScript API to display interactive maps with ro
 
 **IMPORTANT**: Never commit your real API key to version control!
 
-### Option 1: Environment Variable (Recommended)
+### Setting Up Environment Variables
 
-1. Create a `.env` file in the project root:
-   ```
-   REACT_APP_GOOGLE_MAPS_API_KEY=your_actual_api_key_here
-   ```
-
-2. Update `frontend/components/GoogleMap.jsx`:
-   ```javascript
-   const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE";
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env
    ```
 
-3. Add `.env` to `.gitignore`:
+2. Edit `.env` and add your actual API key:
    ```
-   .env
-   .env.local
+   VITE_GOOGLE_MAPS_API_KEY=your_actual_api_key_here
    ```
 
-### Option 2: Direct Replacement (Development Only)
+3. The `.env` file is already in `.gitignore`, so it won't be committed.
 
-1. Open `frontend/components/GoogleMap.jsx`
-2. Replace the placeholder:
-   ```javascript
-   const GOOGLE_MAPS_API_KEY = "your_actual_api_key_here";
+4. **Restart your development server** after creating/updating `.env`:
+   ```bash
+   npm run frontend
    ```
+
+### How It Works
+
+- Vite automatically loads environment variables from `.env` files
+- Variables prefixed with `VITE_` are exposed to client-side code
+- The components (`GoogleMap.jsx` and `LocationSearch.jsx`) automatically use `import.meta.env.VITE_GOOGLE_MAPS_API_KEY`
+- No code changes needed - just set the variable in `.env`
 
 ## Restricting Your API Key
 

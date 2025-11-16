@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import GoogleMap from './components/GoogleMap';
 import LocationSearch from './components/LocationSearch';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// Get API base URL from environment variable, fallback to default
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
 function App() {
   const [startLocation, setStartLocation] = useState(null);

@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-// TODO: Replace this placeholder with your actual Google Maps API key
+// Get API key from environment variable
+// Set VITE_GOOGLE_MAPS_API_KEY in your .env file
 // This should match the key in GoogleMap.jsx
-// Option 1: Use environment variable (recommended for production)
-// const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE";
-// Option 2: Use placeholder (for development - replace with your real key)
-const GOOGLE_MAPS_API_KEY = "AIzaSyBm_H40dXUI_uukcoGHBHHxM610bEDLKjU";
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+if (!GOOGLE_MAPS_API_KEY) {
+  console.error('VITE_GOOGLE_MAPS_API_KEY is not set in .env file');
+}
 
 function LocationSearch({ value, onChange, placeholder, label, disabled }) {
   const inputRef = useRef(null);

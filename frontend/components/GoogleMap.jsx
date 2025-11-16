@@ -1,14 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-// TODO: Replace this placeholder with your actual Google Maps API key
-// Option 1: Use environment variable (recommended for production)
-// const GOOGLE_MAPS_API_KEY = process.env.REACT_APP_GOOGLE_MAPS_API_KEY || "YOUR_API_KEY_HERE";
-// Option 2: Use placeholder (for development - replace with your real key)
-const GOOGLE_MAPS_API_KEY = "AIzaSyBm_H40dXUI_uukcoGHBHHxM610bEDLKjU";
-// 
+// Get API key from environment variable
+// Set VITE_GOOGLE_MAPS_API_KEY in your .env file
 // IMPORTANT: Do not commit your real API key to version control!
-// Get your API key from: https://console.cloud.google.com/google/maps-apis
-// Make sure to restrict the API key to your domain in Google Cloud Console
+const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+if (!GOOGLE_MAPS_API_KEY) {
+  console.error('VITE_GOOGLE_MAPS_API_KEY is not set in .env file');
+}
 
 // Default center (Vancouver)
 const DEFAULT_CENTER = { lat: 49.28, lng: -123.12 };
@@ -60,14 +59,20 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     }
 
     // Load the script with Places library
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.error('Google Maps API key is missing. Please set VITE_GOOGLE_MAPS_API_KEY in .env file');
+      setIsLoaded(false);
+      return;
+    }
+    
     const script = document.createElement('script');
     script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=geometry,places`;
     script.async = true;
     script.defer = true;
     script.onload = () => setIsLoaded(true);
     script.onerror = () => {
-      console.error('Failed to load Google Maps API');
-      alert('Failed to load Google Maps. Please check your API key.');
+      console.error('Failed to load Google Maps API. Please check your API key in .env file');
+      alert('Failed to load Google Maps. Please check your API key in .env file.');
     };
     document.head.appendChild(script);
 
