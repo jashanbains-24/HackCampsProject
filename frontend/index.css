@@ -1048,3 +1048,287 @@ button[data-value="My Location"] img,
     gap: var(--spacing-5);
   }
 }
+
+/* Report Button - Top Right */
+.report-button {
+  position: fixed;
+  top: var(--spacing-6);
+  right: var(--spacing-6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 0.5px solid var(--glass-border);
+  border-radius: var(--radius-xl);
+  color: var(--apple-white);
+  font-family: var(--font-sf);
+  font-size: 15px;
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  box-shadow: var(--glass-shadow);
+  letter-spacing: -0.1px;
+}
+
+.report-button:hover {
+  background: rgba(44, 44, 46, 0.85);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.report-button:active {
+  transform: translateY(0);
+}
+
+.report-button svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.5;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-4);
+  animation: fadeIn 0.2s var(--ease-out);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal Content */
+.modal-content {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 0.5px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--glass-shadow);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s var(--ease-out);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-6);
+  border-bottom: 0.5px solid var(--glass-border);
+}
+
+.modal-title {
+  font-family: var(--font-sf);
+  font-size: 22px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--apple-white);
+  letter-spacing: -0.3px;
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--apple-gray-6);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--apple-white);
+}
+
+.modal-close svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.5;
+}
+
+/* Report Form */
+.report-form {
+  padding: var(--spacing-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-5);
+}
+
+.report-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.report-form .form-label {
+  font-family: var(--font-sf);
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--apple-gray-6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.report-form .form-input {
+  font-family: var(--font-sf);
+  font-size: 15px;
+  padding: var(--spacing-3) var(--spacing-4);
+  background: rgba(255, 255, 255, 0.05);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  color: var(--apple-white);
+  transition: all var(--transition-base);
+}
+
+.report-form .form-input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--apple-blue);
+  box-shadow: 0 0 0 3px rgba(5, 114, 247, 0.1);
+}
+
+.report-form .form-textarea {
+  resize: vertical;
+  min-height: 100px;
+  font-family: var(--font-sf);
+  line-height: 1.5;
+}
+
+.report-form select.form-input {
+  cursor: pointer;
+}
+
+.report-form select.form-input option {
+  background: var(--apple-gray-11);
+  color: var(--apple-white);
+}
+
+/* Modal Actions */
+.modal-actions {
+  display: flex;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-2);
+}
+
+.btn-primary,
+.btn-secondary {
+  flex: 1;
+  padding: var(--spacing-3) var(--spacing-5);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sf);
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  border: none;
+  letter-spacing: -0.1px;
+}
+
+.btn-primary {
+  background: var(--apple-blue);
+  color: var(--apple-white);
+}
+
+.btn-primary:hover {
+  background: var(--apple-blue-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(5, 114, 247, 0.4);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--apple-white);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Mobile Responsiveness for Report Button and Modal */
+@media (max-width: 768px) {
+  .report-button {
+    top: var(--spacing-4);
+    right: var(--spacing-4);
+    padding: var(--spacing-2) var(--spacing-3);
+    font-size: 14px;
+  }
+
+  .report-button span {
+    display: none;
+  }
+
+  .report-button svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .modal-content {
+    max-width: 100%;
+    max-height: 95vh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+
+  .modal-header {
+    padding: var(--spacing-5);
+  }
+
+  .modal-title {
+    font-size: 20px;
+  }
+
+  .report-form {
+    padding: var(--spacing-5);
+  }
+
+  .modal-actions {
+    flex-direction: column;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+  }
+}

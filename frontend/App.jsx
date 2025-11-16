@@ -136,6 +136,10 @@ function App() {
   const [expandedRoute, setExpandedRoute] = useState(null); // Track which route card is expanded
   const [fastestRouteDescriptions, setFastestRouteDescriptions] = useState([]);
   const [safestRouteDescriptions, setSafestRouteDescriptions] = useState([]);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportType, setReportType] = useState('');
+  const [reportDescription, setReportDescription] = useState('');
+  const [reportLocation, setReportLocation] = useState(null);
 
   // Check backend status on mount
   useEffect(() => {
@@ -314,8 +318,117 @@ function App() {
 
   const canSearch = startLocation && endLocation && backendReady && !loading;
 
+  const handleReportSubmit = (e) => {
+    e.preventDefault();
+    // TODO: Send report to backend
+    console.log('Report submitted:', {
+      type: reportType,
+      description: reportDescription,
+      location: reportLocation
+    });
+    // Reset form and close modal
+    setReportType('');
+    setReportDescription('');
+    setReportLocation(null);
+    setShowReportModal(false);
+    // Show success message (you can add a toast notification here)
+    alert('Thank you for your report! We will review it shortly.');
+  };
+
   return (
     <div className="app-container">
+      {/* Report Button - Top Right */}
+      <button
+        className="report-button"
+        onClick={() => setShowReportModal(true)}
+        aria-label="Report an issue"
+      >
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <span>Report</span>
+      </button>
+
+      {/* Report Modal */}
+      {showReportModal && (
+        <div className="modal-overlay" onClick={() => setShowReportModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Report an Issue</h2>
+              <button
+                className="modal-close"
+                onClick={() => setShowReportModal(false)}
+                aria-label="Close modal"
+              >
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleReportSubmit} className="report-form">
+              <div className="form-group">
+                <label htmlFor="report-type" className="form-label">Issue Type</label>
+                <select
+                  id="report-type"
+                  className="form-input"
+                  value={reportType}
+                  onChange={(e) => setReportType(e.target.value)}
+                  required
+                >
+                  <option value="">Select an issue type...</option>
+                  <option value="poor-lighting">Poor Lighting</option>
+                  <option value="dangerous-drivers">Dangerous Drivers</option>
+                  <option value="suspicious-activity">Suspicious Activity</option>
+                  <option value="broken-sidewalks">Broken Sidewalks</option>
+                  <option value="construction-zones">Construction Zones</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="report-description" className="form-label">Description</label>
+                <textarea
+                  id="report-description"
+                  className="form-input form-textarea"
+                  value={reportDescription}
+                  onChange={(e) => setReportDescription(e.target.value)}
+                  placeholder="Please provide details about the issue..."
+                  rows={4}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="report-location" className="form-label">Location (Optional)</label>
+                <LocationSearch
+                  label=""
+                  placeholder="Search for location..."
+                  value={reportLocation}
+                  onChange={(location) => setReportLocation(location)}
+                  disabled={loading || !backendReady}
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowReportModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                >
+                  Submit Report
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Full-screen Map Background - Edge to Edge */}
       <div className="map-container">
         <GoogleMap
