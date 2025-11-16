@@ -2,8 +2,8 @@ const http = require('http');
 const { spawn } = require('child_process');
 const { exec } = require('child_process');
 
-// Start http-server
-const server = spawn('npx', ['http-server', 'frontend', '-p', '8080', '-s'], {
+// Start http-server with cache disabled
+const server = spawn('npx', ['http-server', 'frontend', '-p', '8080', '-c-1'], {
   stdio: 'inherit',
   shell: true
 });
