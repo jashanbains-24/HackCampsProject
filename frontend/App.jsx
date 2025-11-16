@@ -5,6 +5,110 @@ import LocationSearch from './components/LocationSearch';
 // Get API base URL from environment variable, fallback to default
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
 
+// Known areas with specific safety characteristics
+const AREA_DESCRIPTIONS = {
+  eastHastings: {
+    bounds: { 
+      latMin: 49.270, latMax: 49.290, 
+      lngMin: -123.130, lngMax: -123.100 
+    },
+    warnings: [
+      '⚠️ Passes through East Hastings - high crime area, poor lighting, avoid at night'
+    ],
+    safeFeatures: []
+  },
+  downtown: {
+    bounds: { 
+      latMin: 49.275, latMax: 49.285, 
+      lngMin: -123.130, lngMax: -123.115 
+    },
+    warnings: [],
+    safeFeatures: [
+      '✅ Safe route through downtown core with excellent infrastructure and lighting',
+      '✅ Well-lit downtown area with active street life',
+      '✅ Good pedestrian infrastructure and safe havens nearby'
+    ]
+  },
+  yaletown: {
+    bounds: { 
+      latMin: 49.270, latMax: 49.280, 
+      lngMin: -123.135, lngMax: -123.120 
+    },
+    warnings: [],
+    safeFeatures: [
+      '✅ Excellent route: Well-lit path through Yaletown with parks and safe havens nearby',
+      '✅ Residential Yaletown area with good sidewalks and lighting',
+      '✅ Route through quiet neighborhoods with low crime'
+    ]
+  },
+  gastown: {
+    bounds: { 
+      latMin: 49.280, latMax: 49.290, 
+      lngMin: -123.125, lngMax: -123.115 
+    },
+    warnings: [],
+    safeFeatures: [
+      'Well-lit historic Gastown area with active street life and nearby fire hall',
+      '✅ Safe area with good lighting and pedestrian infrastructure'
+    ]
+  }
+};
+
+// Function to check if coordinates are within bounds
+function isInBounds(coord, bounds) {
+  return coord.lat >= bounds.latMin && coord.lat <= bounds.latMax &&
+         coord.lng >= bounds.lngMin && coord.lng <= bounds.lngMax;
+}
+
+// Function to analyze route and generate specific descriptions
+function analyzeRoute(routeCoords) {
+  if (!routeCoords || routeCoords.length === 0) {
+    return [];
+  }
+
+  const descriptions = [];
+  const areasPassed = new Set();
+  
+  // Check each coordinate in the route
+  routeCoords.forEach(coord => {
+    for (const [areaName, areaData] of Object.entries(AREA_DESCRIPTIONS)) {
+      if (isInBounds(coord, areaData.bounds)) {
+        areasPassed.add(areaName);
+      }
+    }
+  });
+
+  // Generate descriptions based on areas passed through
+  if (areasPassed.has('eastHastings')) {
+    descriptions.push(...AREA_DESCRIPTIONS.eastHastings.warnings);
+  }
+  
+  if (areasPassed.has('downtown')) {
+    descriptions.push(AREA_DESCRIPTIONS.downtown.safeFeatures[0]);
+  }
+  
+  if (areasPassed.has('yaletown')) {
+    descriptions.push(AREA_DESCRIPTIONS.yaletown.safeFeatures[0]);
+  }
+  
+  if (areasPassed.has('gastown')) {
+    descriptions.push(AREA_DESCRIPTIONS.gastown.safeFeatures[0]);
+  }
+
+  // If no specific areas detected, check for general characteristics
+  if (descriptions.length === 0) {
+    // Analyze route length and characteristics
+    const routeLength = routeCoords.length;
+    if (routeLength > 200) {
+      descriptions.push('Longer route through multiple neighborhoods');
+    } else {
+      descriptions.push('Direct route with moderate safety considerations');
+    }
+  }
+
+  return descriptions;
+}
+
 function App() {
   const [startLocation, setStartLocation] = useState(null);
   const [endLocation, setEndLocation] = useState(null);
@@ -26,6 +130,8 @@ function App() {
   const [showResults, setShowResults] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState('safest'); // Default to safest route
   const [expandedRoute, setExpandedRoute] = useState(null); // Track which route card is expanded
+  const [fastestRouteDescriptions, setFastestRouteDescriptions] = useState([]);
+  const [safestRouteDescriptions, setSafestRouteDescriptions] = useState([]);
 
   // Check backend status on mount
   useEffect(() => {
@@ -131,6 +237,14 @@ function App() {
       setEndCoords(data.end);
       setSelectedRoute('safest'); // Reset to safest route by default
       setShowResults(true);
+      
+      // Analyze routes and store descriptions
+      const fastestDescriptions = analyzeRoute(data.fastestRoute);
+      const safestDescriptions = analyzeRoute(data.safestRoute);
+      
+      // Store descriptions in state (we'll add state for this)
+      setFastestRouteDescriptions(fastestDescriptions);
+      setSafestRouteDescriptions(safestDescriptions);
     } catch (err) {
       console.error('Error fetching routes:', err);
       setError(err.message || 'Failed to fetch routes. Please check that the backend is running.');
@@ -343,11 +457,19 @@ function App() {
                   <div className="route-details-content">
                     <h4 className="route-details-title">Route Considerations</h4>
                     <ul className="route-details-list">
-                      <li>Shorter distance for quicker travel</li>
-                      <li>May include busier streets with higher traffic</li>
-                      <li>Potentially fewer safety features (lighting, sidewalks)</li>
-                      <li>May cross high-traffic intersections</li>
-                      <li>Less optimized for pedestrian safety infrastructure</li>
+                      {fastestRouteDescriptions.length > 0 ? (
+                        fastestRouteDescriptions.map((desc, idx) => (
+                          <li key={idx}>{desc}</li>
+                        ))
+                      ) : (
+                        <>
+                          <li>Shorter distance for quicker travel</li>
+                          <li>May include busier streets with higher traffic</li>
+                          <li>Potentially fewer safety features (lighting, sidewalks)</li>
+                          <li>May cross high-traffic intersections</li>
+                          <li>Less optimized for pedestrian safety infrastructure</li>
+                        </>
+                      )}
                     </ul>
                   </div>
                 </div>
@@ -406,12 +528,20 @@ function App() {
                   <div className="route-details-content">
                     <h4 className="route-details-title">Why This Route is Safer</h4>
                     <ul className="route-details-list">
-                      <li>Optimized for pedestrian safety infrastructure</li>
-                      <li>Better street lighting coverage</li>
-                      <li>Lower crime risk areas</li>
-                      <li>Well-maintained sidewalks and pathways</li>
-                      <li>Avoids high-traffic intersections where possible</li>
-                      <li>Prioritizes dedicated bike lanes and pedestrian zones</li>
+                      {safestRouteDescriptions.length > 0 ? (
+                        safestRouteDescriptions.map((desc, idx) => (
+                          <li key={idx}>{desc}</li>
+                        ))
+                      ) : (
+                        <>
+                          <li>Optimized for pedestrian safety infrastructure</li>
+                          <li>Better street lighting coverage</li>
+                          <li>Lower crime risk areas</li>
+                          <li>Well-maintained sidewalks and pathways</li>
+                          <li>Avoids high-traffic intersections where possible</li>
+                          <li>Prioritizes dedicated bike lanes and pedestrian zones</li>
+                        </>
+                      )}
                     </ul>
                   </div>
                 </div>

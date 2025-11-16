@@ -94,7 +94,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     // Ultra Dark Mode style configuration
     const darkModeStyles = [
       { elementType: 'geometry', stylers: [{ color: '#1a1a1a' }] },
-      { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+      { elementType: 'labels.icon', stylers: [{ visibility: 'on' }] },
       { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a1a' }, { weight: 2 }] },
       { elementType: 'labels.text.fill', stylers: [{ color: '#8e8e93' }] },
       {
@@ -120,12 +120,17 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
       {
         featureType: 'poi',
         elementType: 'geometry',
-        stylers: [{ color: '#1a1a1a' }]
+        stylers: [{ color: '#1a1a1a' }, { visibility: 'on' }]
       },
       {
         featureType: 'poi',
         elementType: 'labels.text.fill',
-        stylers: [{ color: '#6e6e6e' }]
+        stylers: [{ color: '#a8a8a8' }, { visibility: 'on' }]
+      },
+      {
+        featureType: 'poi',
+        elementType: 'labels.icon',
+        stylers: [{ visibility: 'on' }, { saturation: 0 }]
       },
       {
         featureType: 'poi.park',
@@ -219,7 +224,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
       scaleControl: false,          // Remove scale bar
       rotateControl: false,         // Remove rotate control
       panControl: false,           // Remove pan control
-      clickableIcons: false,        // Disable clicking on POIs
+      clickableIcons: true,        // Enable clicking on POIs
       keyboardShortcuts: false,     // Disable keyboard shortcuts
       styles: darkModeStyles,
     });
