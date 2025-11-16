@@ -39,6 +39,8 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
   const endMarkerRef = useRef(null);
   const startInfoWindowRef = useRef(null);
   const endInfoWindowRef = useRef(null);
+  const fastestAnimationRef = useRef(null);
+  const safestAnimationRef = useRef(null);
 
   // Load Google Maps script
   useEffect(() => {
@@ -224,17 +226,103 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
       scaleControl: false,          // Remove scale bar
       rotateControl: false,         // Remove rotate control
       panControl: false,           // Remove pan control
-      clickableIcons: true,        // Enable clicking on POIs
+      clickableIcons: false,        // Disable clicking on POIs
       keyboardShortcuts: false,     // Disable keyboard shortcuts
       styles: darkModeStyles,
+      // Keep My Location button but we'll style it in dark mode
+      disableDefaultUI: false,      // Allow default UI so we can style it
     });
+
+    // Style My Location button to dark mode
+    setTimeout(() => {
+      const myLocationButtons = document.querySelectorAll(
+        'button[title*="My Location"], ' +
+        'button[title*="Your location"], ' +
+        'button[aria-label*="My Location"], ' +
+        'button[aria-label*="Your location"], ' +
+        'button[data-value="My Location"], ' +
+        '.gm-control-active[title*="location" i]'
+      );
+      myLocationButtons.forEach(btn => {
+        // Apply dark mode styling
+        btn.style.backgroundColor = 'rgba(28, 28, 30, 0.9)';
+        btn.style.border = '0.5px solid rgba(255, 255, 255, 0.1)';
+        btn.style.borderRadius = '12px';
+        btn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.4)';
+        btn.style.backdropFilter = 'blur(20px)';
+        btn.style.webkitBackdropFilter = 'blur(20px)';
+        
+        // Style the icon inside
+        const icon = btn.querySelector('img, svg, div[style*="background"]');
+        if (icon) {
+          icon.style.filter = 'invert(1) brightness(0.9)';
+        }
+        
+        // Hover state
+        btn.addEventListener('mouseenter', () => {
+          btn.style.backgroundColor = 'rgba(44, 44, 46, 0.95)';
+        });
+        btn.addEventListener('mouseleave', () => {
+          btn.style.backgroundColor = 'rgba(28, 28, 30, 0.9)';
+        });
+      });
+    }, 500);
 
     mapInstanceRef.current = map;
   }, [isLoaded]);
 
+  // Animate polyline drawing
+  const animatePolyline = (polylineRef, fullPath, duration = 2000) => {
+    return new Promise((resolve) => {
+      if (!polylineRef.current || !fullPath || fullPath.length === 0) {
+        resolve();
+        return;
+      }
+
+      // Cancel any existing animation
+      if (polylineRef.current.animationFrame) {
+        cancelAnimationFrame(polylineRef.current.animationFrame);
+      }
+
+      const startTime = Date.now();
+      const totalPoints = fullPath.length;
+      let currentPoints = 1;
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Easing function for smooth animation
+        const easedProgress = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+        
+        currentPoints = Math.max(1, Math.floor(easedProgress * totalPoints));
+        const animatedPath = fullPath.slice(0, currentPoints);
+        
+        polylineRef.current.setPath(animatedPath);
+
+        if (progress < 1) {
+          polylineRef.current.animationFrame = requestAnimationFrame(animate);
+        } else {
+          // Ensure full path is set at the end
+          polylineRef.current.setPath(fullPath);
+          resolve();
+        }
+      };
+
+      // Start with empty path
+      polylineRef.current.setPath([]);
+      polylineRef.current.animationFrame = requestAnimationFrame(animate);
+    });
+  };
+
   // Update fastest route polyline
   useEffect(() => {
     if (!mapInstanceRef.current || !fastestRoute || fastestRoute.length === 0) {
+      // Cancel animation if route is cleared
+      if (fastestAnimationRef.current) {
+        cancelAnimationFrame(fastestAnimationRef.current);
+        fastestAnimationRef.current = null;
+      }
       if (fastestPolylineRef.current) {
         fastestPolylineRef.current.setMap(null);
         fastestPolylineRef.current = null;
@@ -250,18 +338,10 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     const isSelected = selectedRoute === 'fastest';
     const opacity = isSelected ? 0.85 : 0.595; // 30% reduction when not selected (0.85 * 0.7)
 
-    // Update or create visible polyline (original thickness)
-    if (fastestPolylineRef.current) {
-      fastestPolylineRef.current.setPath(path);
-      fastestPolylineRef.current.setOptions({
-        strokeOpacity: opacity,
-        strokeWeight: isSelected ? 4 : 3, // Thinner lines
-        clickable: false, // Disable clicks on visible line
-        icons: [], // Remove arrows
-      });
-    } else {
+    // Create or update visible polyline
+    if (!fastestPolylineRef.current) {
       fastestPolylineRef.current = new window.google.maps.Polyline({
-        path: path,
+        path: [], // Start with empty path for animation
         geodesic: true,
         strokeColor: '#0572f7', // Apple Blue
         strokeOpacity: opacity,
@@ -270,14 +350,19 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         clickable: false, // Disable clicks on visible line
         icons: [], // No arrows
       });
+    } else {
+      fastestPolylineRef.current.setOptions({
+        strokeOpacity: opacity,
+        strokeWeight: isSelected ? 4 : 3,
+        clickable: false,
+        icons: [],
+      });
     }
 
     // Create or update invisible clickable polyline with larger hitbox
-    if (fastestClickPolylineRef.current) {
-      fastestClickPolylineRef.current.setPath(path);
-    } else {
+    if (!fastestClickPolylineRef.current) {
       fastestClickPolylineRef.current = new window.google.maps.Polyline({
-        path: path,
+        path: path, // Full path for click detection
         geodesic: true,
         strokeColor: '#0A84FF',
         strokeOpacity: 0, // Completely invisible
@@ -291,12 +376,24 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
       fastestClickPolylineRef.current.addListener('click', () => {
         if (onRouteSelect) onRouteSelect('fastest');
       });
+    } else {
+      fastestClickPolylineRef.current.setPath(path);
     }
+
+    // Animate the visible polyline
+    animatePolyline(fastestPolylineRef, path, 2000).then(() => {
+      fastestAnimationRef.current = null;
+    });
   }, [fastestRoute, mapInstanceRef.current, selectedRoute]);
 
   // Update safest route polyline
   useEffect(() => {
     if (!mapInstanceRef.current || !safestRoute || safestRoute.length === 0) {
+      // Cancel animation if route is cleared
+      if (safestAnimationRef.current) {
+        cancelAnimationFrame(safestAnimationRef.current);
+        safestAnimationRef.current = null;
+      }
       if (safestPolylineRef.current) {
         safestPolylineRef.current.setMap(null);
         safestPolylineRef.current = null;
@@ -312,18 +409,10 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     const isSelected = selectedRoute === 'safest';
     const opacity = isSelected ? 0.85 : 0.595; // 30% reduction when not selected (0.85 * 0.7)
 
-    // Update or create visible polyline (original thickness)
-    if (safestPolylineRef.current) {
-      safestPolylineRef.current.setPath(path);
-      safestPolylineRef.current.setOptions({
-        strokeOpacity: opacity,
-        strokeWeight: isSelected ? 4 : 3, // Thinner lines
-        clickable: false, // Disable clicks on visible line
-        icons: [], // Remove arrows
-      });
-    } else {
+    // Create or update visible polyline
+    if (!safestPolylineRef.current) {
       safestPolylineRef.current = new window.google.maps.Polyline({
-        path: path,
+        path: [], // Start with empty path for animation
         geodesic: true,
         strokeColor: '#00FF7F', // Spring Green
         strokeOpacity: opacity,
@@ -332,14 +421,19 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         clickable: false, // Disable clicks on visible line
         icons: [], // No arrows
       });
+    } else {
+      safestPolylineRef.current.setOptions({
+        strokeOpacity: opacity,
+        strokeWeight: isSelected ? 4 : 3,
+        clickable: false,
+        icons: [],
+      });
     }
 
     // Create or update invisible clickable polyline with larger hitbox
-    if (safestClickPolylineRef.current) {
-      safestClickPolylineRef.current.setPath(path);
-    } else {
+    if (!safestClickPolylineRef.current) {
       safestClickPolylineRef.current = new window.google.maps.Polyline({
-        path: path,
+        path: path, // Full path for click detection
         geodesic: true,
         strokeColor: '#00FF7F',
         strokeOpacity: 0, // Completely invisible
@@ -353,7 +447,14 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
       safestClickPolylineRef.current.addListener('click', () => {
         if (onRouteSelect) onRouteSelect('safest');
       });
+    } else {
+      safestClickPolylineRef.current.setPath(path);
     }
+
+    // Animate the visible polyline
+    animatePolyline(safestPolylineRef, path, 2000).then(() => {
+      safestAnimationRef.current = null;
+    });
   }, [safestRoute, mapInstanceRef.current, selectedRoute]);
 
   // Update start marker
@@ -486,8 +587,18 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
   }, [end, endLabel, mapInstanceRef.current]);
 
   // Fit bounds to show all routes and markers
+  // Only fit bounds when both locations are set AND routes exist
   useEffect(() => {
     if (!mapInstanceRef.current) return;
+
+    // Only fit bounds if both start and end are set AND we have routes
+    const hasRoutes = (fastestRoute && fastestRoute.length > 0) || (safestRoute && safestRoute.length > 0);
+    const hasBothLocations = start && end;
+
+    // Don't fit bounds if we only have one location (let user keep current zoom)
+    if (!hasBothLocations || !hasRoutes) {
+      return;
+    }
 
     const bounds = new window.google.maps.LatLngBounds();
     let hasBounds = false;

@@ -263,6 +263,20 @@ function App() {
     fetchRoutes();
   };
 
+  // Clear routes when locations are cleared
+  useEffect(() => {
+    if (!startLocation || !endLocation) {
+      setFastestRoute([]);
+      setSafestRoute([]);
+      setStartCoords(null);
+      setEndCoords(null);
+      setShowResults(false);
+      setError(null);
+      setExpandedRoute(null);
+      setSelectedRoute('safest'); // Reset to default
+    }
+  }, [startLocation, endLocation]);
+
   // Auto-refetch routes when departure time changes (if locations are set and toggle is enabled)
   useEffect(() => {
     // Only auto-refetch if:

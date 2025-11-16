@@ -49,9 +49,17 @@ function LocationSearch({ value, onChange, placeholder, label, disabled }) {
   useEffect(() => {
     if (!isLoaded || !inputRef.current || autocompleteRef.current) return;
 
+    // Define BC bounds (approximate bounding box for British Columbia)
+    const bcBounds = new window.google.maps.LatLngBounds(
+      new window.google.maps.LatLng(48.0, -139.0), // Southwest corner
+      new window.google.maps.LatLng(60.0, -114.0)  // Northeast corner
+    );
+
     const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
       types: ['geocode', 'establishment'], // Restrict to addresses and places
-      componentRestrictions: { country: 'ca' }, // Restrict to Canada (Vancouver)
+      componentRestrictions: { country: 'ca' }, // Restrict to Canada
+      bounds: bcBounds, // Restrict to BC bounds
+      strictBounds: true, // Only show results within bounds
       fields: ['geometry', 'formatted_address', 'name', 'place_id']
     });
 
@@ -59,15 +67,28 @@ function LocationSearch({ value, onChange, placeholder, label, disabled }) {
       const place = autocomplete.getPlace();
       
       if (place.geometry && place.geometry.location) {
-        const location = {
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng(),
-          address: place.formatted_address || place.name || '',
-          placeId: place.place_id
-        };
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
         
-        onChange(location);
-        setSearchValue(place.formatted_address || place.name || '');
+        // Validate that location is within BC bounds
+        const isInBC = lat >= 48.0 && lat <= 60.0 && lng >= -139.0 && lng <= -114.0;
+        
+        if (isInBC) {
+          const location = {
+            lat: lat,
+            lng: lng,
+            address: place.formatted_address || place.name || '',
+            placeId: place.place_id
+          };
+          
+          onChange(location);
+          setSearchValue(place.formatted_address || place.name || '');
+        } else {
+          // Location is outside BC - clear and show error
+          setSearchValue('');
+          onChange(null);
+          console.warn('Selected location is outside British Columbia');
+        }
       }
     });
 

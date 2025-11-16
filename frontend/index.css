@@ -97,6 +97,42 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Style Google Maps My Location / Direction button - Dark Mode */
+button[title*="My Location"],
+button[title*="Your location"],
+button[aria-label*="My Location"],
+button[aria-label*="Your location"],
+button[data-value="My Location"],
+.gm-control-active[title*="location" i] {
+  background: rgba(28, 28, 30, 0.9) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+  transition: all var(--transition-base) !important;
+}
+
+button[title*="My Location"]:hover,
+button[title*="Your location"]:hover,
+button[aria-label*="My Location"]:hover,
+button[aria-label*="Your location"]:hover,
+button[data-value="My Location"]:hover,
+.gm-control-active[title*="location" i]:hover {
+  background: rgba(44, 44, 46, 0.95) !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Invert icon colors for dark mode */
+button[title*="My Location"] img,
+button[title*="Your location"] img,
+button[aria-label*="My Location"] img,
+button[aria-label*="Your location"] img,
+button[data-value="My Location"] img,
+.gm-control-active[title*="location" i] img {
+  filter: invert(1) brightness(0.9) !important;
+}
+
 #root {
   height: 100vh;
   width: 100vw;
@@ -832,6 +868,76 @@ body {
 }
 
 /* Location Search Component */
+/* Google Places Autocomplete - Apple Dark Theme */
+.pac-container {
+  background: rgba(28, 28, 30, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 0.5px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: var(--radius-xl) !important;
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.4),
+    0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  margin-top: var(--spacing-2) !important;
+  padding: var(--spacing-2) !important;
+  font-family: var(--font-sf) !important;
+  overflow: hidden !important;
+  z-index: 2000 !important;
+}
+
+.pac-item {
+  background: transparent !important;
+  border: none !important;
+  border-radius: var(--radius-md) !important;
+  padding: var(--spacing-3) var(--spacing-4) !important;
+  margin: var(--spacing-1) 0 !important;
+  color: var(--apple-white) !important;
+  font-size: 15px !important;
+  font-weight: var(--font-weight-regular) !important;
+  font-family: var(--font-sf) !important;
+  cursor: pointer !important;
+  transition: all var(--transition-base) !important;
+  letter-spacing: -0.1px !important;
+}
+
+.pac-item:hover,
+.pac-item-selected {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.pac-item-selected {
+  background: rgba(5, 114, 247, 0.2) !important;
+  border: 0.5px solid rgba(5, 114, 247, 0.3) !important;
+}
+
+.pac-item-query {
+  color: var(--apple-white) !important;
+  font-size: 15px !important;
+  font-weight: var(--font-weight-medium) !important;
+}
+
+.pac-matched {
+  color: var(--apple-blue) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  text-decoration: none !important;
+}
+
+.pac-icon {
+  margin-right: var(--spacing-3) !important;
+  opacity: 0.6 !important;
+}
+
+.pac-item .pac-icon {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+/* Remove default Google styling */
+.pac-container:after {
+  display: none !important;
+}
+
 .location-search {
   width: 100%;
 }

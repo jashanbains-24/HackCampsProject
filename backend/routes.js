@@ -186,7 +186,7 @@ router.get('/route', async (req, res) => {
     if (startCoord[0] < 49 || startCoord[0] > 50 || startCoord[1] < -124 || startCoord[1] > -122 ||
         endCoord[0] < 49 || endCoord[0] > 50 || endCoord[1] < -124 || endCoord[1] > -122) {
       return res.status(400).json({ 
-        error: 'Coordinates are outside Vancouver area. Please select locations in Vancouver, BC.' 
+        error: 'Please select locations in Vancouver, BC.' 
       });
     }
     
