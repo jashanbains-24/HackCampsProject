@@ -10,7 +10,7 @@
 
 ## 🌟 Project Overview
 
-SafeWalk Vancouver is an intelligent route planning application designed to prioritize pedestrian and cyclist safety. Unlike traditional navigation apps that focus solely on speed, SafeWalk analyzes multiple safety factors including:
+SafeWalk+ is an intelligent route planning application designed to prioritize pedestrian and cyclist safety. Unlike traditional navigation apps that focus solely on speed, SafeWalk+ analyzes multiple safety factors including:
 
 - **Infrastructure Quality** - Sidewalk conditions, bike lanes, and pedestrian-friendly streets
 - **Lighting Conditions** - Street lighting coverage and visibility

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import GoogleMap from './components/GoogleMap';
 import LocationSearch from './components/LocationSearch';
+import NavigationMode from './components/NavigationMode';
 
 // Get API base URL from environment variable, fallback to default
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
@@ -430,6 +431,8 @@ function App() {
   const [reportType, setReportType] = useState('');
   const [reportDescription, setReportDescription] = useState('');
   const [reportLocation, setReportLocation] = useState(null);
+  const [navigationMode, setNavigationMode] = useState(false);
+  const [navigationRouteType, setNavigationRouteType] = useState(null);
 
   // Check backend status on mount
   useEffect(() => {
@@ -737,15 +740,32 @@ function App() {
           end={endCoords}
           startLabel={startLocation?.address || 'Start'}
           endLabel={endLocation?.address || 'End'}
-          selectedRoute={selectedRoute}
+          selectedRoute={navigationMode ? navigationRouteType : selectedRoute}
           onRouteSelect={setSelectedRoute}
         />
       </div>
 
+      {/* Navigation Mode Overlay - Full Screen */}
+      {navigationMode && (
+        <NavigationMode
+          route={navigationRouteType === 'fastest' ? fastestRoute : safestRoute}
+          routeType={navigationRouteType}
+          routeInfo={navigationRouteType === 'fastest' ? fastestRouteInfo : safestRouteInfo}
+          onStop={() => {
+            setNavigationMode(false);
+            setNavigationRouteType(null);
+          }}
+          onReport={(reportData) => {
+            console.log('Report submitted from navigation:', reportData);
+          }}
+        />
+      )}
+
       {/* Frosted Glass Floating Panel */}
+      {!navigationMode && (
       <div className="control-panel">
         <div className="panel-header">
-          <h1 className="app-title">SafeWalk</h1>
+          <h1 className="app-title">SafeWalk+</h1>
           <p className="app-subtitle">Vancouver Route Planner</p>
         </div>
 
@@ -928,6 +948,22 @@ function App() {
                     </ul>
                   </div>
                 </div>
+                {selectedRoute === 'fastest' && (
+                  <button 
+                    className="route-start-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNavigationMode(true);
+                      setNavigationRouteType('fastest');
+                    }}
+                  >
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Start Navigation
+                  </button>
+                )}
               </div>
             )}
 
@@ -997,6 +1033,22 @@ function App() {
                     </ul>
                   </div>
                 </div>
+                {selectedRoute === 'safest' && (
+                  <button 
+                    className="route-start-btn route-start-btn-safest"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setNavigationMode(true);
+                      setNavigationRouteType('safest');
+                    }}
+                  >
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Start Navigation
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -1011,6 +1063,7 @@ function App() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
