@@ -16,30 +16,79 @@ let streetData = null;
 let graphData = null;
 let graph = null;
 let nodeMap = null;
+let isLoading = false;
+let loadPromise = null;
+let loadError = null;
 
-// Initialize data on first request
+// Initialize data - can be called multiple times safely
 function initializeData() {
-  if (!streetData) {
+  // If already loaded, return immediately
+  if (streetData && graph) {
+    return Promise.resolve();
+  }
+  
+  // If currently loading, return the existing promise
+  if (isLoading && loadPromise) {
+    return loadPromise;
+  }
+  
+  // If there was an error, throw it
+  if (loadError) {
+    return Promise.reject(loadError);
+  }
+  
+  // Start loading
+  isLoading = true;
+  loadPromise = new Promise((resolve, reject) => {
     try {
       console.log('Loading street data from CSV files...');
-      streetData = loadStreetData();
-      console.log(`Loaded ${streetData.length} street segments`);
+      const startTime = Date.now();
       
+      streetData = loadStreetData();
+      console.log(`Loaded ${streetData.length} street segments in ${Date.now() - startTime}ms`);
+      
+      const buildStart = Date.now();
       const built = buildGraph(streetData);
       graph = built.graph;
       nodeMap = built.nodeMap;
-      console.log(`Built graph with ${Object.keys(graph).length} nodes`);
+      console.log(`Built graph with ${Object.keys(graph).length} nodes in ${Date.now() - buildStart}ms`);
+      
+      isLoading = false;
+      resolve();
     } catch (error) {
       console.error('Error loading data:', error);
-      throw error;
+      isLoading = false;
+      loadError = error;
+      reject(error);
     }
-  }
+  });
+  
+  return loadPromise;
 }
 
+// Pre-load data when module is loaded (non-blocking)
+setImmediate(() => {
+  initializeData().catch(err => {
+    console.error('Background data loading failed:', err);
+  });
+});
+
+// GET /status endpoint to check loading status
+router.get('/status', (req, res) => {
+  res.json({
+    loaded: !!(streetData && graph),
+    loading: isLoading,
+    segments: streetData ? streetData.length : 0,
+    nodes: graph ? Object.keys(graph).length : 0,
+    error: loadError ? loadError.message : null
+  });
+});
+
 // GET /route endpoint
-router.get('/route', (req, res) => {
+router.get('/route', async (req, res) => {
   try {
-    initializeData();
+    // Wait for data to be loaded
+    await initializeData();
     
     const { start, end, hour } = req.query;
     

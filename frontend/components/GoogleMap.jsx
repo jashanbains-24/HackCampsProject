@@ -28,7 +28,7 @@ const convertToGoogleFormat = (coords) => {
   }));
 };
 
-function GoogleMap({ fastestRoute, safestRoute, start, end }) {
+function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start', endLabel = 'End' }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -36,6 +36,8 @@ function GoogleMap({ fastestRoute, safestRoute, start, end }) {
   const safestPolylineRef = useRef(null);
   const startMarkerRef = useRef(null);
   const endMarkerRef = useRef(null);
+  const startInfoWindowRef = useRef(null);
+  const endInfoWindowRef = useRef(null);
 
   // Load Google Maps script
   useEffect(() => {
@@ -57,9 +59,9 @@ function GoogleMap({ fastestRoute, safestRoute, start, end }) {
       return () => clearInterval(checkLoaded);
     }
 
-    // Load the script
+    // Load the script with Places library
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=geometry`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=geometry,places`;
     script.async = true;
     script.defer = true;
     script.onload = () => setIsLoaded(true);
@@ -154,12 +156,16 @@ function GoogleMap({ fastestRoute, safestRoute, start, end }) {
       
       if (startMarkerRef.current) {
         startMarkerRef.current.setPosition(position);
+        // Update info window content if label changed
+        if (startInfoWindowRef.current) {
+          startInfoWindowRef.current.setContent(`<div><strong>Start</strong><br/>${startLabel}</div>`);
+        }
       } else {
         startMarkerRef.current = new window.google.maps.Marker({
           position: position,
           map: mapInstanceRef.current,
           label: 'S',
-          title: 'Start',
+          title: startLabel,
           icon: {
             path: window.google.maps.SymbolPath.CIRCLE,
             scale: 8,
@@ -169,6 +175,14 @@ function GoogleMap({ fastestRoute, safestRoute, start, end }) {
             strokeWeight: 2
           }
         });
+        
+        // Add info window for start marker
+        startInfoWindowRef.current = new window.google.maps.InfoWindow({
+          content: `<div><strong>Start</strong><br/>${startLabel}</div>`
+        });
+        startMarkerRef.current.addListener('click', () => {
+          startInfoWindowRef.current.open(mapInstanceRef.current, startMarkerRef.current);
+        });
       }
     } else {
       if (startMarkerRef.current) {
@@ -176,7 +190,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end }) {
         startMarkerRef.current = null;
       }
     }
-  }, [start, mapInstanceRef.current]);
+  }, [start, startLabel, mapInstanceRef.current]);
 
   // Update end marker
   useEffect(() => {
@@ -187,12 +201,16 @@ function GoogleMap({ fastestRoute, safestRoute, start, end }) {
       
       if (endMarkerRef.current) {
         endMarkerRef.current.setPosition(position);
+        // Update info window content if label changed
+        if (endInfoWindowRef.current) {
+          endInfoWindowRef.current.setContent(`<div><strong>End</strong><br/>${endLabel}</div>`);
+        }
       } else {
         endMarkerRef.current = new window.google.maps.Marker({
           position: position,
           map: mapInstanceRef.current,
           label: 'E',
-          title: 'End',
+          title: endLabel,
           icon: {
             path: window.google.maps.SymbolPath.CIRCLE,
             scale: 8,
@@ -202,6 +220,14 @@ function GoogleMap({ fastestRoute, safestRoute, start, end }) {
             strokeWeight: 2
           }
         });
+        
+        // Add info window for end marker
+        endInfoWindowRef.current = new window.google.maps.InfoWindow({
+          content: `<div><strong>End</strong><br/>${endLabel}</div>`
+        });
+        endMarkerRef.current.addListener('click', () => {
+          endInfoWindowRef.current.open(mapInstanceRef.current, endMarkerRef.current);
+        });
       }
     } else {
       if (endMarkerRef.current) {
@@ -209,7 +235,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end }) {
         endMarkerRef.current = null;
       }
     }
-  }, [end, mapInstanceRef.current]);
+  }, [end, endLabel, mapInstanceRef.current]);
 
   // Fit bounds to show all routes and markers
   useEffect(() => {

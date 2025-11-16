@@ -94,7 +94,7 @@ function findClosestSegmentPoint(targetCoord, segments) {
 function loadStreetData() {
   const dataDir = path.join(__dirname, '..', 'data');
   
-  // Load bikeways
+  // Load bikeways - optimized parsing
   const bikewaysPath = path.join(dataDir, 'bikeways.csv');
   const bikewaysContent = fs.readFileSync(bikewaysPath, 'utf-8');
   const bikewaysRecords = parse(bikewaysContent, {
@@ -106,19 +106,11 @@ function loadStreetData() {
     quote: '"',
     escape: '"',
     delimiter: ';',
-    skip_records_with_error: true,
-    on_record: (record, context) => {
-      // Clean up any problematic fields
-      Object.keys(record).forEach(key => {
-        if (typeof record[key] === 'string') {
-          record[key] = record[key].trim();
-        }
-      });
-      return record;
-    }
+    skip_records_with_error: true
+    // Removed on_record callback for performance - we'll trim when needed
   });
   
-  // Load sidewalk condition data
+  // Load sidewalk condition data - optimized
   const sidewalkPath = path.join(dataDir, 'sidewalk-condition-rating.csv');
   const sidewalkContent = fs.readFileSync(sidewalkPath, 'utf-8');
   const sidewalkRecords = parse(sidewalkContent, {
@@ -130,18 +122,10 @@ function loadStreetData() {
     quote: '"',
     escape: '"',
     delimiter: ';',
-    skip_records_with_error: true,
-    on_record: (record, context) => {
-      Object.keys(record).forEach(key => {
-        if (typeof record[key] === 'string') {
-          record[key] = record[key].trim();
-        }
-      });
-      return record;
-    }
+    skip_records_with_error: true
   });
   
-  // Load street lighting
+  // Load street lighting - optimized
   const lightingPath = path.join(dataDir, 'street-lighting-poles.csv');
   const lightingContent = fs.readFileSync(lightingPath, 'utf-8');
   const lightingRecords = parse(lightingContent, {
@@ -153,43 +137,40 @@ function loadStreetData() {
     quote: '"',
     escape: '"',
     delimiter: ';',
-    skip_records_with_error: true,
-    on_record: (record, context) => {
-      Object.keys(record).forEach(key => {
-        if (typeof record[key] === 'string') {
-          record[key] = record[key].trim();
-        }
-      });
-      return record;
-    }
+    skip_records_with_error: true
   });
   
   // Process bikeways into segments
   const segments = [];
   const segmentMap = new Map(); // For quick lookup
   
+  // Process bikeways - optimized with early filtering
   bikewaysRecords.forEach((record, index) => {
-    const coords = parseGeometry(record.Geom || record['Geom']);
+    const geomField = record.Geom || record['Geom'];
+    if (!geomField) return; // Skip records without geometry
+    
+    const coords = parseGeometry(geomField);
     if (coords.length < 2) return;
     
+    const bikewayType = (record['Bikeway type'] || '').trim();
     const segmentId = `bike_${index}`;
     const segment = {
       id: segmentId,
       coordinates: coords,
-      streetName: record['Street name'] || record['Bike route name'] || '',
-      bikewayType: record['Bikeway type'] || '',
+      streetName: (record['Street name'] || record['Bike route name'] || '').trim(),
+      bikewayType: bikewayType,
       speedLimit: parseInt(record['Speed limit']) || 30,
       length: parseFloat(record['Segment length']) || calculateDistance(coords[0], coords[coords.length - 1]),
       start: coords[0],
       end: coords[coords.length - 1],
-      // Safety scores based on bikeway type
+      // Safety scores based on bikeway type - optimized
       scores: {
-        infra: record['Bikeway type'] === 'Protected Bike Lanes' ? 9 : 
-               record['Bikeway type'] === 'Painted Lanes' ? 6 : 4,
+        infra: bikewayType === 'Protected Bike Lanes' ? 9 : 
+               bikewayType === 'Painted Lanes' ? 6 : 4,
         light: 5, // Will be enhanced with lighting data
         crime: 3, // Default
         disruption: 0,
-        amenity: record['AAA Network'] === 'YES' ? 8 : 4
+        amenity: (record['AAA Network'] || '').trim() === 'YES' ? 8 : 4
       }
     };
     
@@ -197,35 +178,44 @@ function loadStreetData() {
     segmentMap.set(segmentId, segment);
   });
   
-  // Enhance with sidewalk condition data
+  // Enhance with sidewalk condition data - optimized with spatial indexing
+  const sidewalkMap = new Map(); // Cache condition scores by approximate location
   sidewalkRecords.forEach((record) => {
-    const coords = parseGeometry(record.Geom || record['Geom']);
+    const geomField = record.Geom || record['Geom'];
+    if (!geomField) return;
+    
+    const coords = parseGeometry(geomField);
     if (coords.length < 2) return;
     
-    const condition = record['Sidewalk Condition Index Rating'] || '';
+    const condition = (record['Sidewalk Condition Index Rating'] || '').trim();
     const conditionScore = condition === 'Very Good' ? 9 :
                           condition === 'Good' ? 7 :
                           condition === 'Fair' ? 5 :
                           condition === 'Poor' ? 3 : 1;
     
-    // Find nearby segments and enhance their scores
-    const segmentStart = coords[0];
-    const segmentEnd = coords[coords.length - 1];
-    
-    segments.forEach(seg => {
-      const dist1 = calculateDistance(segmentStart, seg.start);
-      const dist2 = calculateDistance(segmentEnd, seg.end);
-      if (dist1 < 0.01 || dist2 < 0.01) { // Within ~1km
-        seg.scores.infra = Math.max(seg.scores.infra, conditionScore);
-      }
-    });
+    // Store condition for nearby segments (round to 0.001 for spatial hashing)
+    const key1 = `${Math.round(coords[0][0] * 1000)},${Math.round(coords[0][1] * 1000)}`;
+    const key2 = `${Math.round(coords[coords.length - 1][0] * 1000)},${Math.round(coords[coords.length - 1][1] * 1000)}`;
+    sidewalkMap.set(key1, conditionScore);
+    sidewalkMap.set(key2, conditionScore);
   });
   
-  // Enhance with lighting data
-  const lightingPoints = lightingRecords.map(record => {
+  // Apply sidewalk conditions to segments
+  segments.forEach(seg => {
+    const key1 = `${Math.round(seg.start[0] * 1000)},${Math.round(seg.start[1] * 1000)}`;
+    const key2 = `${Math.round(seg.end[0] * 1000)},${Math.round(seg.end[1] * 1000)}`;
+    const score1 = sidewalkMap.get(key1);
+    const score2 = sidewalkMap.get(key2);
+    if (score1) seg.scores.infra = Math.max(seg.scores.infra, score1);
+    if (score2) seg.scores.infra = Math.max(seg.scores.infra, score2);
+  });
+  
+  // Enhance with lighting data - optimized with spatial grid
+  const lightingGrid = new Map(); // Spatial grid for faster lookup
+  lightingRecords.forEach(record => {
     try {
       const geomStr = record.Geom || record['Geom'];
-      if (!geomStr) return null;
+      if (!geomStr) return;
       let cleaned = geomStr.trim();
       if ((cleaned.startsWith('"') && cleaned.endsWith('"')) || 
           (cleaned.startsWith("'") && cleaned.endsWith("'"))) {
@@ -234,18 +224,25 @@ function loadStreetData() {
       cleaned = cleaned.replace(/""/g, '"');
       const geom = JSON.parse(cleaned);
       if (geom.type === 'Point' && geom.coordinates) {
-        return [geom.coordinates[1], geom.coordinates[0]]; // [lat, lng]
+        const point = [geom.coordinates[1], geom.coordinates[0]]; // [lat, lng]
+        // Add to spatial grid (round to 0.01 for ~1km grid cells)
+        const gridKey = `${Math.round(point[0] * 100)},${Math.round(point[1] * 100)}`;
+        if (!lightingGrid.has(gridKey)) {
+          lightingGrid.set(gridKey, []);
+        }
+        lightingGrid.get(gridKey).push(point);
       }
-      return null;
     } catch (e) {
-      return null;
+      // Skip invalid records
     }
-  }).filter(point => point !== null);
+  });
   
-  // Count nearby lights for each segment
+  // Count nearby lights for each segment using grid lookup
   segments.forEach(seg => {
     let lightCount = 0;
-    lightingPoints.forEach(lightPoint => {
+    const gridKey = `${Math.round(seg.start[0] * 100)},${Math.round(seg.start[1] * 100)}`;
+    const nearbyLights = lightingGrid.get(gridKey) || [];
+    nearbyLights.forEach(lightPoint => {
       const dist = calculateDistance(seg.start, lightPoint);
       if (dist < 0.05) { // Within ~50m
         lightCount++;

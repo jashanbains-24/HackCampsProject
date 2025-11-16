@@ -1,51 +1,61 @@
 import React, { useState, useEffect } from 'react';
 import GoogleMap from './components/GoogleMap';
+import LocationSearch from './components/LocationSearch';
 
 const API_BASE_URL = 'http://localhost:3001/api';
 
 function App() {
-  const [startNode, setStartNode] = useState('A');
-  const [endNode, setEndNode] = useState('F');
+  const [startLocation, setStartLocation] = useState(null);
+  const [endLocation, setEndLocation] = useState(null);
   const [hour, setHour] = useState(12);
   const [fastestRoute, setFastestRoute] = useState([]);
   const [safestRoute, setSafestRoute] = useState([]);
   const [startCoords, setStartCoords] = useState(null);
   const [endCoords, setEndCoords] = useState(null);
-  const [nodes, setNodes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch available nodes on mount
+  // Check backend status on mount
   useEffect(() => {
-    fetch(`${API_BASE_URL}/nodes`)
-      .then(res => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then(data => {
-        console.log('Loaded nodes:', data);
-        setNodes(data);
-        // Set default values if nodes are loaded and no defaults set
-        if (data.length > 0) {
-          if (!startNode || startNode === '') {
-            setStartNode(data[0].id);
+    const checkStatus = async () => {
+      try {
+        const statusRes = await fetch(`${API_BASE_URL}/status`);
+        if (statusRes.ok) {
+          const status = await statusRes.json();
+          if (!status.loaded && status.loading) {
+            setError('Backend is loading street data... Please wait.');
+            // Poll until ready
+            const pollInterval = setInterval(async () => {
+              const pollRes = await fetch(`${API_BASE_URL}/status`);
+              if (pollRes.ok) {
+                const pollStatus = await pollRes.json();
+                if (pollStatus.loaded) {
+                  clearInterval(pollInterval);
+                  setError(null);
+                } else if (pollStatus.error) {
+                  clearInterval(pollInterval);
+                  setError(`Backend error: ${pollStatus.error}`);
+                }
+              }
+            }, 1000);
+            return () => clearInterval(pollInterval);
+          } else if (status.loaded) {
+            setError(null);
           }
-          if (data.length > 1 && (!endNode || endNode === '')) {
-            setEndNode(data[data.length - 1].id);
-          }
         }
-      })
-      .catch(err => {
-        console.error('Error fetching nodes:', err);
-        setError(`Failed to load locations: ${err.message}`);
-      });
+      } catch (err) {
+        console.warn('Status check failed:', err);
+      }
+    };
+    
+    checkStatus();
   }, []);
 
   // Fetch routes when start/end/hour changes
   useEffect(() => {
-    if (startNode && endNode && startNode !== endNode) {
+    if (startLocation && endLocation && 
+        startLocation.lat && startLocation.lng && 
+        endLocation.lat && endLocation.lng) {
       fetchRoutes();
     } else {
       setFastestRoute([]);
@@ -54,15 +64,21 @@ function App() {
       setEndCoords(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startNode, endNode, hour]);
+  }, [startLocation, endLocation, hour]);
 
   const fetchRoutes = async () => {
+    if (!startLocation || !endLocation) return;
+    
     setLoading(true);
     setError(null);
     
     try {
+      // Format coordinates as lat,lng
+      const startStr = `${startLocation.lat},${startLocation.lng}`;
+      const endStr = `${endLocation.lat},${endLocation.lng}`;
+      
       const response = await fetch(
-        `${API_BASE_URL}/route?start=${startNode}&end=${endNode}&hour=${hour}`
+        `${API_BASE_URL}/route?start=${startStr}&end=${endStr}&hour=${hour}`
       );
       
       if (!response.ok) {
@@ -100,44 +116,42 @@ function App() {
         
         {/* Route Inputs */}
         <div className="space-y-4 mb-6">
-          <div>
-            <label htmlFor="start-node" className="block text-sm font-medium mb-2">
-              Start Location:
-            </label>
-            <select
-              id="start-node"
-              value={startNode}
-              onChange={(e) => setStartNode(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-black px-3 py-2"
-              disabled={loading || nodes.length === 0}
-            >
-              <option value="">Select start location...</option>
-              {nodes.map((node) => (
-                <option key={node.id} value={node.id}>
-                  {node.id} - {node.name || `(${node.coordinates?.[0]?.toFixed(4)}, ${node.coordinates?.[1]?.toFixed(4)})`}
-                </option>
-              ))}
-            </select>
+          <LocationSearch
+            label="Start Location:"
+            placeholder="Search for start location..."
+            value={startLocation}
+            onChange={(location) => {
+              setStartLocation(location);
+              if (location) {
+                setStartCoords({ lat: location.lat, lng: location.lng });
+              }
+            }}
+            disabled={loading}
+          />
+          <div className="mt-4">
+            <LocationSearch
+              label="End Location:"
+              placeholder="Search for end location..."
+              value={endLocation}
+              onChange={(location) => {
+                setEndLocation(location);
+                if (location) {
+                  setEndCoords({ lat: location.lat, lng: location.lng });
+                }
+              }}
+              disabled={loading}
+            />
           </div>
-          <div>
-            <label htmlFor="end-node" className="block text-sm font-medium mb-2 mt-4">
-              End Location:
-            </label>
-            <select
-              id="end-node"
-              value={endNode}
-              onChange={(e) => setEndNode(e.target.value)}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-black px-3 py-2"
-              disabled={loading || nodes.length === 0}
-            >
-              <option value="">Select end location...</option>
-              {nodes.map((node) => (
-                <option key={node.id} value={node.id}>
-                  {node.id} - {node.name || `(${node.coordinates?.[0]?.toFixed(4)}, ${node.coordinates?.[1]?.toFixed(4)})`}
-                </option>
-              ))}
-            </select>
-          </div>
+          {startLocation && (
+            <p className="text-xs text-gray-400 mt-1">
+              Start: {startLocation.address || `${startLocation.lat?.toFixed(4)}, ${startLocation.lng?.toFixed(4)}`}
+            </p>
+          )}
+          {endLocation && (
+            <p className="text-xs text-gray-400 mt-1">
+              End: {endLocation.address || `${endLocation.lat?.toFixed(4)}, ${endLocation.lng?.toFixed(4)}`}
+            </p>
+          )}
         </div>
 
         {/* Time Slider */}
@@ -192,7 +206,11 @@ function App() {
               </div>
             )}
             {!loading && !error && fastestRoute.length === 0 && safestRoute.length === 0 && (
-              <p className="text-gray-300">Select start and end locations to see routes.</p>
+              <p className="text-gray-300">
+                {!startLocation || !endLocation 
+                  ? "Search for start and end locations to see routes." 
+                  : "Calculating routes..."}
+              </p>
             )}
           </div>
         </div>
@@ -205,6 +223,8 @@ function App() {
           safestRoute={safestRoute}
           start={startCoords}
           end={endCoords}
+          startLabel={startLocation?.address || 'Start'}
+          endLabel={endLocation?.address || 'End'}
         />
       </div>
     </div>
