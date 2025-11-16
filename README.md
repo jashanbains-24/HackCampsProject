@@ -1,4 +1,4 @@
-# SafeWalk Vancouver 🚶‍♀️
+# SafeWalk+
 
 **A safety-first pedestrian and cyclist routing application for Vancouver, BC** that helps users navigate the city using the safest and fastest routes based on real street data, infrastructure quality, lighting conditions, and crime statistics.
 
