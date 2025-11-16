@@ -48,7 +48,14 @@ function LocationSearch({ value, onChange, placeholder, label, disabled }) {
   // Initialize Autocomplete
   useEffect(() => {
     if (!isLoaded || !inputRef.current || autocompleteRef.current) return;
+    
+    // Safety check: ensure Google Maps API is available
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      console.error('Google Maps Places API is not available');
+      return;
+    }
 
+    try {
     // Define BC bounds (approximate bounding box for British Columbia)
     const bcBounds = new window.google.maps.LatLngBounds(
       new window.google.maps.LatLng(48.0, -139.0), // Southwest corner
@@ -95,6 +102,9 @@ function LocationSearch({ value, onChange, placeholder, label, disabled }) {
     });
 
     autocompleteRef.current = autocomplete;
+    } catch (error) {
+      console.error('Error initializing Google Places Autocomplete:', error);
+    }
   }, [isLoaded, onChange]);
 
   // Update input value when external value changes

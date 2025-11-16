@@ -5,8 +5,12 @@ import React, { useEffect, useRef, useState } from 'react';
 // IMPORTANT: Do not commit your real API key to version control!
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+// Debug logging (remove in production)
 if (!GOOGLE_MAPS_API_KEY) {
-  console.error('VITE_GOOGLE_MAPS_API_KEY is not set in .env file');
+  console.error('❌ VITE_GOOGLE_MAPS_API_KEY is not set in .env file');
+  console.log('Available env vars:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')));
+} else {
+  console.log('✅ Google Maps API key loaded (length:', GOOGLE_MAPS_API_KEY.length, 'chars)');
 }
 
 // Default center (Vancouver)
@@ -31,6 +35,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [containerReady, setContainerReady] = useState(false);
   const fastestPolylineRef = useRef(null);
   const fastestClickPolylineRef = useRef(null); // Invisible polyline for larger hitbox
   const safestPolylineRef = useRef(null);
@@ -80,13 +85,23 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
 
     // Check if script is already being loaded
     if (document.querySelector(`script[src*="maps.googleapis.com"]`)) {
-      // Wait for it to load
+      // Wait for it to load and window.google to be available
       const checkLoaded = setInterval(() => {
-        if (window.google && window.google.maps) {
+        if (window.google && window.google.maps && window.google.maps.Map) {
+          console.log('✅ Google Maps API is available (script was already loading)');
           setIsLoaded(true);
           clearInterval(checkLoaded);
         }
       }, 100);
+      
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        if (!window.google || !window.google.maps) {
+          clearInterval(checkLoaded);
+          console.error('❌ Google Maps API did not become available');
+        }
+      }, 10000);
+      
       return () => clearInterval(checkLoaded);
     }
 
@@ -98,14 +113,44 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     }
     
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=geometry,places&loading=async`;
+    const scriptUrl = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=geometry,places&loading=async`;
+    script.src = scriptUrl;
     script.async = true;
     script.defer = true;
-    script.onload = () => setIsLoaded(true);
-    script.onerror = () => {
-      console.error('Failed to load Google Maps API. Please check your API key in .env file');
-      alert('Failed to load Google Maps. Please check your API key in .env file.');
+    script.onload = () => {
+      console.log('✅ Google Maps script loaded, waiting for API to be available...');
+      // Wait for window.google to actually be available (can take a moment after script loads)
+      const checkGoogle = setInterval(() => {
+        if (window.google && window.google.maps && window.google.maps.Map) {
+          console.log('✅ Google Maps API is now available');
+          clearInterval(checkGoogle);
+          setIsLoaded(true);
+        }
+      }, 50);
+      
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        if (!window.google || !window.google.maps) {
+          clearInterval(checkGoogle);
+          console.error('❌ Google Maps API did not become available after script load');
+          console.error('This might indicate an API key issue or API not enabled');
+          setIsLoaded(false);
+        }
+      }, 10000);
     };
+    script.onerror = (error) => {
+      console.error('❌ Failed to load Google Maps API script');
+      console.error('Error details:', error);
+      console.error('Script URL:', scriptUrl.replace(GOOGLE_MAPS_API_KEY, 'API_KEY_HIDDEN'));
+      console.error('Please check:');
+      console.error('1. API key is correct in .env file');
+      console.error('2. API key has Maps JavaScript API enabled');
+      console.error('3. API key restrictions allow your domain');
+      console.error('4. You have internet connectivity');
+      alert('Failed to load Google Maps. Please check the browser console for details.');
+      setIsLoaded(false);
+    };
+    console.log('📡 Loading Google Maps script...');
     document.head.appendChild(script);
 
     return () => {
@@ -117,10 +162,78 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     };
   }, []);
 
+  // Check if container is ready (has dimensions)
+  useEffect(() => {
+    if (!mapRef.current || containerReady) return;
+    
+    const checkContainer = () => {
+      if (!mapRef.current) return;
+      const rect = mapRef.current.getBoundingClientRect();
+      console.log('📐 Container dimensions:', { width: rect.width, height: rect.height });
+      if (rect.width > 0 && rect.height > 0) {
+        console.log('✅ Container is ready with dimensions');
+        setContainerReady(true);
+      } else {
+        console.warn('⚠️ Container has zero dimensions');
+      }
+    };
+    
+    // Check immediately
+    checkContainer();
+    
+    // If not ready, check after next frame
+    if (!containerReady) {
+      requestAnimationFrame(checkContainer);
+      // Also check after a delay
+      const timeoutId = setTimeout(checkContainer, 300);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [containerReady]);
+
   // Initialize map
   useEffect(() => {
-    if (!isLoaded || !mapRef.current || mapInstanceRef.current) return;
+    if (!isLoaded || !mapRef.current || mapInstanceRef.current || !containerReady) {
+      if (!isLoaded) console.log('⏳ Waiting for Google Maps script to load...');
+      if (!mapRef.current) console.log('⏳ Waiting for map container ref...');
+      if (mapInstanceRef.current) console.log('⏳ Map already initialized');
+      if (!containerReady) console.log('⏳ Waiting for container to have dimensions...');
+      return;
+    }
+    
+    // Safety check: ensure Google Maps API is actually available
+    // If not available yet, wait a bit and retry
+    if (!window.google || !window.google.maps || !window.google.maps.Map) {
+      console.warn('⚠️ Google Maps API not available yet, waiting...');
+      console.log('window.google:', window.google);
+      
+      // Wait for window.google to become available
+      const checkGoogle = setInterval(() => {
+        if (window.google && window.google.maps && window.google.maps.Map) {
+          clearInterval(checkGoogle);
+          console.log('✅ Google Maps API is now available, initializing map...');
+          // Trigger re-initialization by forcing a re-render
+          // The useEffect will run again and window.google will be available
+        }
+      }, 100);
+      
+      // Timeout after 5 seconds
+      setTimeout(() => {
+        clearInterval(checkGoogle);
+        if (!window.google || !window.google.maps) {
+          console.error('❌ Google Maps API is still not available after waiting');
+          console.error('This usually means:');
+          console.error('1. The API key is invalid or restricted');
+          console.error('2. Maps JavaScript API is not enabled for this key');
+          console.error('3. There is a network issue');
+        }
+      }, 5000);
+      
+      return;
+    }
+    
+    console.log('🗺️ Initializing Google Map...');
 
+    try {
     // Ultra Dark Mode style configuration
     const darkModeStyles = [
       { elementType: 'geometry', stylers: [{ color: '#1a1a1a' }] },
@@ -351,7 +464,45 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     }, 500);
 
     mapInstanceRef.current = map;
-  }, [isLoaded]);
+    console.log('✅ Google Map initialized successfully');
+    
+    // Trigger resize to ensure map renders correctly after initialization
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      if (window.google && window.google.maps && map) {
+        window.google.maps.event.trigger(map, 'resize');
+        console.log('🔄 Triggered map resize (requestAnimationFrame)');
+      }
+    });
+    
+    // Also trigger resize after a short delay to handle any async layout
+    setTimeout(() => {
+      if (window.google && window.google.maps && map) {
+        window.google.maps.event.trigger(map, 'resize');
+        console.log('🔄 Triggered map resize (setTimeout)');
+      }
+    }, 200);
+    
+    } catch (error) {
+      console.error('❌ Error initializing Google Map:', error);
+      console.error('Error stack:', error.stack);
+      setIsLoaded(false);
+    }
+  }, [isLoaded, containerReady]);
+  
+  // Handle window resize to update map
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    
+    const handleResize = () => {
+      if (window.google && window.google.maps && mapInstanceRef.current) {
+        window.google.maps.event.trigger(mapInstanceRef.current, 'resize');
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [mapInstanceRef.current]);
 
   // Animate polyline drawing
   const animatePolyline = (polylineRef, fullPath, duration = 2000) => {
@@ -399,6 +550,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
 
   // Update fastest route polyline
   useEffect(() => {
+    if (!window.google || !window.google.maps) return;
     if (!mapInstanceRef.current || !fastestRoute || fastestRoute.length === 0) {
       // Cancel animation if route is cleared
       if (fastestAnimationRef.current) {
@@ -486,6 +638,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
 
   // Update safest route polyline
   useEffect(() => {
+    if (!window.google || !window.google.maps) return;
     if (!mapInstanceRef.current || !safestRoute || safestRoute.length === 0) {
       // Cancel animation if route is cleared
       if (safestAnimationRef.current) {
@@ -573,6 +726,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
 
   // Update start marker
   useEffect(() => {
+    if (!window.google || !window.google.maps) return;
     if (!mapInstanceRef.current) return;
 
     if (start) {
@@ -622,6 +776,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
 
   // Update end marker
   useEffect(() => {
+    if (!window.google || !window.google.maps) return;
     if (!mapInstanceRef.current) return;
 
     if (end) {
@@ -707,6 +862,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
   // Fit bounds to show all routes and markers
   // Only fit bounds when both locations are set AND routes exist
   useEffect(() => {
+    if (!window.google || !window.google.maps) return;
     if (!mapInstanceRef.current) return;
 
     // Only fit bounds if both start and end are set AND we have routes
@@ -760,13 +916,40 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     }
   }, [fastestRoute, safestRoute, start, end, mapInstanceRef.current]);
 
+  // Show error message if API key is missing
+  if (!GOOGLE_MAPS_API_KEY) {
+    return (
+      <div 
+        style={{ 
+          height: '100%', 
+          width: '100%',
+          minHeight: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#1a1a1a',
+          color: '#8e8e93',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif',
+          padding: '20px',
+          textAlign: 'center'
+        }} 
+      >
+        <div>
+          <p style={{ fontSize: '16px', marginBottom: '8px' }}>Google Maps API key is missing</p>
+          <p style={{ fontSize: '14px', opacity: 0.7 }}>Please set VITE_GOOGLE_MAPS_API_KEY in your .env file</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       ref={mapRef} 
       style={{ 
         height: '100%', 
         width: '100%',
-        minHeight: 0
+        minHeight: '100%',
+        position: 'relative'
       }} 
     />
   );
