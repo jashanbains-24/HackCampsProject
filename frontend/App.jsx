@@ -48,11 +48,136 @@ const AREA_DESCRIPTIONS = {
     },
     warnings: [],
     safeFeatures: [
-      'Well-lit historic Gastown area with active street life and nearby fire hall',
+      '✅ Well-lit historic Gastown area with active street life and nearby fire hall',
       '✅ Safe area with good lighting and pedestrian infrastructure'
+    ]
+  },
+  kitsilano: {
+    bounds: {
+      latMin: 49.265, latMax: 49.280,
+      lngMin: -123.170, lngMax: -123.145
+    },
+    warnings: [],
+    safeFeatures: [
+      '✅ Route through Kitsilano - safe residential area with good lighting',
+      '✅ Well-maintained sidewalks and bike lanes in Kitsilano',
+      '✅ Active neighborhood with parks and community amenities nearby'
+    ]
+  },
+  shaughnessy: {
+    bounds: {
+      latMin: 49.240, latMax: 49.260,
+      lngMin: -123.145, lngMax: -123.120
+    },
+    warnings: [],
+    safeFeatures: [
+      '✅ Passes through Shaughnessy - upscale residential area with excellent safety',
+      '✅ Quiet, well-lit streets in Shaughnessy with low traffic',
+      '✅ High-quality pedestrian infrastructure in this neighborhood'
+    ]
+  },
+  strathcona: {
+    bounds: {
+      latMin: 49.275, latMax: 49.290,
+      lngMin: -123.100, lngMax: -123.080
+    },
+    warnings: [
+      '⚠️ Route passes through Strathcona - mixed area, be cautious at night'
+    ],
+    safeFeatures: [
+      '✅ Some areas of Strathcona have good community infrastructure'
+    ]
+  },
+  ubc: {
+    bounds: {
+      latMin: 49.250, latMax: 49.270,
+      lngMin: -123.260, lngMax: -123.230
+    },
+    warnings: [],
+    safeFeatures: [
+      '✅ Route near UBC campus - well-lit with active student presence',
+      '✅ Good pedestrian infrastructure around UBC area',
+      '✅ Campus security and emergency services nearby'
+    ]
+  },
+  highway1: {
+    bounds: {
+      latMin: 49.200, latMax: 49.300,
+      lngMin: -123.200, lngMax: -123.100
+    },
+    warnings: [
+      '⚠️ Route passes near Highway 1 - higher traffic and noise levels',
+      '⚠️ Be extra cautious when crossing or near major highways'
+    ],
+    safeFeatures: []
+  },
+  highway99: {
+    bounds: {
+      latMin: 49.250, latMax: 49.300,
+      lngMin: -123.150, lngMax: -123.100
+    },
+    warnings: [
+      '⚠️ Route passes near Highway 99 - busy arterial with heavy traffic',
+      '⚠️ Exercise caution near highway intersections'
+    ],
+    safeFeatures: []
+  },
+  mountPleasant: {
+    bounds: {
+      latMin: 49.265, latMax: 49.280,
+      lngMin: -123.100, lngMax: -123.080
+    },
+    warnings: [],
+    safeFeatures: [
+      '✅ Route through Mount Pleasant - vibrant neighborhood with good infrastructure',
+      '✅ Well-maintained streets and active community presence'
+    ]
+  },
+  fairview: {
+    bounds: {
+      latMin: 49.260, latMax: 49.275,
+      lngMin: -123.130, lngMax: -123.110
+    },
+    warnings: [],
+    safeFeatures: [
+      '✅ Passes through Fairview - residential area with good lighting',
+      '✅ Safe neighborhood with community amenities nearby'
+    ]
+  },
+  westEnd: {
+    bounds: {
+      latMin: 49.280, latMax: 49.290,
+      lngMin: -123.140, lngMax: -123.125
+    },
+    warnings: [],
+    safeFeatures: [
+      '✅ Route through West End - safe, well-lit residential area',
+      '✅ Active neighborhood with good pedestrian infrastructure'
+    ]
+  },
+  coalHarbour: {
+    bounds: {
+      latMin: 49.285, latMax: 49.295,
+      lngMin: -123.130, lngMax: -123.120
+    },
+    warnings: [],
+    safeFeatures: [
+      '✅ Route through Coal Harbour - upscale area with excellent safety',
+      '✅ Well-maintained waterfront paths and excellent lighting'
     ]
   }
 };
+
+// Major schools in Vancouver (approximate locations)
+const SCHOOLS = [
+  { name: 'UBC', bounds: { latMin: 49.250, latMax: 49.270, lngMin: -123.260, lngMax: -123.230 } },
+  { name: 'SFU', bounds: { latMin: 49.275, latMax: 49.285, lngMin: -122.920, lngMax: -122.900 } },
+  { name: 'Vancouver Technical Secondary', bounds: { latMin: 49.265, latMax: 49.275, lngMin: -123.070, lngMax: -123.060 } },
+  { name: 'Lord Byng Secondary', bounds: { latMin: 49.265, latMax: 49.275, lngMin: -123.180, lngMax: -123.170 } },
+  { name: 'Kitsilano Secondary', bounds: { latMin: 49.270, latMax: 49.280, lngMin: -123.160, lngMax: -123.150 } },
+  { name: 'Point Grey Secondary', bounds: { latMin: 49.255, latMax: 49.265, lngMin: -123.200, lngMax: -123.190 } },
+  { name: 'University Hill Secondary', bounds: { latMin: 49.250, latMax: 49.260, lngMin: -123.250, lngMax: -123.240 } }
+];
 
 // Function to check if coordinates are within bounds
 function isInBounds(coord, bounds) {
@@ -60,65 +185,230 @@ function isInBounds(coord, bounds) {
          coord.lng >= bounds.lngMin && coord.lng <= bounds.lngMax;
 }
 
-// Function to analyze route and generate specific descriptions
-function analyzeRoute(routeCoords) {
+// Function to check if coordinate is near a point (within radius)
+function isNearPoint(coord, point, radiusKm = 0.5) {
+  const R = 6371; // Earth's radius in km
+  const dLat = (coord.lat - point.lat) * Math.PI / 180;
+  const dLng = (coord.lng - point.lng) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(point.lat * Math.PI / 180) * Math.cos(coord.lat * Math.PI / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distance = R * c;
+  return distance <= radiusKm;
+}
+
+// Helper function to analyze route areas
+function analyzeRouteAreas(routeCoords) {
   if (!routeCoords || routeCoords.length === 0) {
-    return [];
+    return { areasPassed: new Set(), schoolsNearby: new Set(), neighborhoods: [] };
   }
 
-  const descriptions = [];
   const areasPassed = new Set();
+  const schoolsNearby = new Set();
+  const neighborhoods = [];
   
   // Check each coordinate in the route
   routeCoords.forEach(coord => {
+    // Normalize coordinate format (handle both {lat, lng} and [lat, lng])
+    const normalizedCoord = {
+      lat: coord.lat || coord[0] || (Array.isArray(coord) ? coord[0] : null),
+      lng: coord.lng || coord[1] || (Array.isArray(coord) ? coord[1] : null)
+    };
+    
+    if (!normalizedCoord.lat || !normalizedCoord.lng) return;
+    
+    // Check neighborhoods and areas
     for (const [areaName, areaData] of Object.entries(AREA_DESCRIPTIONS)) {
-      if (isInBounds(coord, areaData.bounds)) {
+      if (isInBounds(normalizedCoord, areaData.bounds)) {
         areasPassed.add(areaName);
+      }
+    }
+    
+    // Check for schools nearby
+    SCHOOLS.forEach(school => {
+      if (isInBounds(normalizedCoord, school.bounds)) {
+        schoolsNearby.add(school.name);
+      }
+    });
+  });
+
+  // Neighborhood display names mapping
+  const neighborhoodNames = {
+    'coalHarbour': 'Coal Harbour',
+    'westEnd': 'West End',
+    'shaughnessy': 'Shaughnessy',
+    'kitsilano': 'Kitsilano',
+    'mountPleasant': 'Mount Pleasant',
+    'fairview': 'Fairview',
+    'yaletown': 'Yaletown',
+    'downtown': 'Downtown',
+    'gastown': 'Gastown',
+    'strathcona': 'Strathcona',
+    'eastHastings': 'East Hastings'
+  };
+  
+  const neighborhoodOrder = [
+    'coalHarbour', 'westEnd', 'shaughnessy', 'kitsilano', 'mountPleasant', 
+    'fairview', 'yaletown', 'downtown', 'gastown', 'strathcona', 'eastHastings'
+  ];
+  
+  neighborhoodOrder.forEach(areaName => {
+    if (areasPassed.has(areaName)) {
+      neighborhoods.push(neighborhoodNames[areaName] || areaName);
+    }
+  });
+
+  return { areasPassed, schoolsNearby, neighborhoods };
+}
+
+// Function to analyze safest route - returns structured data with "Route Benefits" only (no warnings)
+function analyzeSafestRoute(routeCoords) {
+  if (!routeCoords || routeCoords.length === 0) {
+    return {
+      benefits: ['Optimized for pedestrian safety infrastructure', 'Better street lighting coverage', 'Well-maintained sidewalks and pathways']
+    };
+  }
+
+  const { areasPassed, schoolsNearby, neighborhoods } = analyzeRouteAreas(routeCoords);
+  const benefits = [];
+
+  // No warnings for safest route - only positive benefits
+
+  // Route Benefits - always positive
+  const neighborhoodOrder = [
+    'coalHarbour', 'westEnd', 'shaughnessy', 'kitsilano', 'mountPleasant', 
+    'fairview', 'yaletown', 'downtown', 'gastown'
+  ];
+  
+  neighborhoodOrder.forEach(areaName => {
+    if (areasPassed.has(areaName)) {
+      const areaData = AREA_DESCRIPTIONS[areaName];
+      if (areaData.safeFeatures && areaData.safeFeatures.length > 0) {
+        // Extract positive messages (remove emojis and warnings)
+        areaData.safeFeatures.forEach(feature => {
+          if (!feature.includes('⚠️')) {
+            benefits.push(feature.replace(/^✅\s*/, ''));
+          }
+        });
       }
     }
   });
 
-  // Generate descriptions based on areas passed through
-  if (areasPassed.has('eastHastings')) {
-    descriptions.push(...AREA_DESCRIPTIONS.eastHastings.warnings);
-  }
-  
-  if (areasPassed.has('downtown')) {
-    descriptions.push(AREA_DESCRIPTIONS.downtown.safeFeatures[0]);
-  }
-  
-  if (areasPassed.has('yaletown')) {
-    descriptions.push(AREA_DESCRIPTIONS.yaletown.safeFeatures[0]);
-  }
-  
-  if (areasPassed.has('gastown')) {
-    descriptions.push(AREA_DESCRIPTIONS.gastown.safeFeatures[0]);
-  }
-
-  // If no specific areas detected, check for general characteristics
-  if (descriptions.length === 0) {
-    // Analyze route length and characteristics
-    const routeLength = routeCoords.length;
-    if (routeLength > 200) {
-      descriptions.push('Longer route through multiple neighborhoods');
-    } else {
-      descriptions.push('Direct route with moderate safety considerations');
+  // UBC proximity
+  if (areasPassed.has('ubc')) {
+    benefits.push('Route near UBC campus - well-lit with active student presence');
+    benefits.push('Good pedestrian infrastructure around UBC area');
+  } else {
+    const ubcCenter = { lat: 49.260, lng: -123.246 };
+    const nearUBC = routeCoords.some(coord => {
+      const normalizedCoord = {
+        lat: coord.lat || coord[0] || (Array.isArray(coord) ? coord[0] : null),
+        lng: coord.lng || coord[1] || (Array.isArray(coord) ? coord[1] : null)
+      };
+      return normalizedCoord.lat && normalizedCoord.lng && isNearPoint(normalizedCoord, ubcCenter, 2);
+    });
+    if (nearUBC) {
+      benefits.push('Route passes near UBC campus area');
     }
   }
 
-  return descriptions;
+  // Schools detection
+  if (schoolsNearby.size > 0) {
+    const schoolList = Array.from(schoolsNearby).join(', ');
+    if (schoolsNearby.has('UBC')) {
+      benefits.push(`Route passes near ${schoolList} - active campus area with good lighting`);
+    } else {
+      benefits.push(`Route passes near ${schoolList} - well-monitored school zones`);
+    }
+  }
+
+  // Neighborhood summary
+  if (neighborhoods.length > 0) {
+    if (neighborhoods.length > 1) {
+      benefits.unshift(`Route passes through: ${neighborhoods.join(', ')}`);
+    } else {
+      benefits.unshift(`Route through ${neighborhoods[0]} neighborhood`);
+    }
+  }
+
+  // Default benefits if none found
+  if (benefits.length === 0) {
+    benefits.push('Optimized for pedestrian safety infrastructure');
+    benefits.push('Better street lighting coverage');
+    benefits.push('Well-maintained sidewalks and pathways');
+  }
+
+  return { benefits };
+}
+
+// Function to analyze fastest route - returns structured data with "Route Information"
+function analyzeFastestRoute(routeCoords) {
+  if (!routeCoords || routeCoords.length === 0) {
+    return {
+      information: ['Shorter distance for quicker travel']
+    };
+  }
+
+  const { areasPassed, schoolsNearby, neighborhoods } = analyzeRouteAreas(routeCoords);
+  const information = [];
+
+  // Warnings about areas
+  if (areasPassed.has('eastHastings')) {
+    information.push('⚠️ Passes through East Hastings - high crime area, poor lighting, avoid at night');
+  }
+  
+  if (areasPassed.has('strathcona')) {
+    information.push('⚠️ Route passes through Strathcona - mixed area, be cautious at night');
+  }
+
+  if (areasPassed.has('highway1')) {
+    information.push('⚠️ Route passes near Highway 1 - higher traffic and noise levels');
+  }
+  
+  if (areasPassed.has('highway99')) {
+    information.push('⚠️ Route passes near Highway 99 - busy arterial with heavy traffic');
+  }
+
+  // Schools (as information, not necessarily negative)
+  if (schoolsNearby.size > 0 && !schoolsNearby.has('UBC')) {
+    const schoolList = Array.from(schoolsNearby).join(', ');
+    information.push(`Route passes near ${schoolList} - be mindful of school zones`);
+  }
+
+  // Neighborhood information
+  if (neighborhoods.length > 0) {
+    if (neighborhoods.length > 1) {
+      information.push(`Route passes through: ${neighborhoods.join(', ')}`);
+    } else {
+      information.push(`Route through ${neighborhoods[0]} neighborhood`);
+    }
+  }
+
+  // Always have at least one line - use positive if no warnings
+  if (information.length === 0) {
+    if (neighborhoods.length > 0) {
+      information.push(`Direct route through ${neighborhoods[0]} - shorter distance for quicker travel`);
+    } else {
+      information.push('Shorter distance for quicker travel');
+    }
+  }
+
+  return { information };
 }
 
 function App() {
   const [startLocation, setStartLocation] = useState(null);
   const [endLocation, setEndLocation] = useState(null);
   const [departureTimeEnabled, setDepartureTimeEnabled] = useState(false);
+  const [departureDate, setDepartureDate] = useState('today'); // 'today' or 'tomorrow'
   const [departureTime, setDepartureTime] = useState(() => {
-    // Default to current time + 1 hour
+    // Default to current time + 1 hour, rounded to nearest 15 minutes
     const now = new Date();
     now.setHours(now.getHours() + 1);
-    now.setMinutes(0);
-    return now.toISOString().slice(0, 16); // Format: YYYY-MM-DDTHH:mm
+    const minutes = Math.round(now.getMinutes() / 15) * 15;
+    now.setMinutes(minutes);
+    return now.toTimeString().slice(0, 5); // Format: HH:mm
   });
   const [fastestRoute, setFastestRoute] = useState([]);
   const [safestRoute, setSafestRoute] = useState([]);
@@ -134,8 +424,8 @@ function App() {
   const [showResults, setShowResults] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState('safest'); // Default to safest route
   const [expandedRoute, setExpandedRoute] = useState(null); // Track which route card is expanded
-  const [fastestRouteDescriptions, setFastestRouteDescriptions] = useState([]);
-  const [safestRouteDescriptions, setSafestRouteDescriptions] = useState([]);
+  const [fastestRouteInfo, setFastestRouteInfo] = useState({ information: [] });
+  const [safestRouteInfo, setSafestRouteInfo] = useState({ benefits: [] });
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportType, setReportType] = useState('');
   const [reportDescription, setReportDescription] = useState('');
@@ -209,7 +499,14 @@ function App() {
       // Convert departure time to ISO timestamp if enabled
       let url = `${API_BASE_URL}/route?start=${startStr}&end=${endStr}`;
       if (departureTimeEnabled && departureTime) {
-        const departureTimestamp = new Date(departureTime).toISOString();
+        // Combine date selection (today/tomorrow) with time
+        const now = new Date();
+        if (departureDate === 'tomorrow') {
+          now.setDate(now.getDate() + 1);
+        }
+        const [hours, minutes] = departureTime.split(':');
+        now.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+        const departureTimestamp = now.toISOString();
         url += `&departure=${encodeURIComponent(departureTimestamp)}`;
       }
       console.log('Fetching route from:', url);
@@ -261,13 +558,13 @@ function App() {
         fullData: data
       });
       
-      // Analyze routes and store descriptions
-      const fastestDescriptions = analyzeRoute(data.fastestRoute);
-      const safestDescriptions = analyzeRoute(data.safestRoute);
+      // Analyze routes and store structured descriptions
+      const fastestInfo = analyzeFastestRoute(data.fastestRoute);
+      const safestInfo = analyzeSafestRoute(data.safestRoute);
       
-      // Store descriptions in state (we'll add state for this)
-      setFastestRouteDescriptions(fastestDescriptions);
-      setSafestRouteDescriptions(safestDescriptions);
+      // Store structured info in state
+      setFastestRouteInfo(fastestInfo);
+      setSafestRouteInfo(safestInfo);
     } catch (err) {
       console.error('Error fetching routes:', err);
       setError(err.message || 'Failed to fetch routes. Please check that the backend is running.');
@@ -301,6 +598,8 @@ function App() {
       setError(null);
       setExpandedRoute(null);
       setSelectedRoute('safest'); // Reset to default
+      setFastestRouteInfo({ information: [] });
+      setSafestRouteInfo({ benefits: [] });
     }
   }, [startLocation, endLocation]);
 
@@ -314,7 +613,7 @@ function App() {
       fetchRoutes();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [departureTime, departureTimeEnabled]); // Refetch when departure time or toggle changes
+  }, [departureTime, departureDate, departureTimeEnabled]); // Refetch when departure time, date, or toggle changes
 
   const canSearch = startLocation && endLocation && backendReady && !loading;
 
@@ -513,15 +812,27 @@ function App() {
             </div>
             {departureTimeEnabled && (
               <div className="datetime-wrapper">
-                <input
-                  id="departure-time"
-                  type="datetime-local"
-                  value={departureTime}
-                  onChange={(e) => setDepartureTime(e.target.value)}
-                  disabled={loading || !backendReady}
-                  className="form-input datetime-input"
-                  min={new Date().toISOString().slice(0, 16)}
-                />
+                <div className="departure-time-selectors">
+                  <select
+                    id="departure-date"
+                    value={departureDate}
+                    onChange={(e) => setDepartureDate(e.target.value)}
+                    disabled={loading || !backendReady}
+                    className="departure-day-select"
+                  >
+                    <option value="today">Today</option>
+                    <option value="tomorrow">Tomorrow</option>
+                  </select>
+                  <input
+                    id="departure-time"
+                    type="time"
+                    value={departureTime}
+                    onChange={(e) => setDepartureTime(e.target.value)}
+                    disabled={loading || !backendReady}
+                    className="departure-time-select"
+                    step="900"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -605,20 +916,14 @@ function App() {
                 </div>
                 <div className={`route-details ${expandedRoute === 'fastest' ? 'expanded' : ''}`}>
                   <div className="route-details-content">
-                    <h4 className="route-details-title">Route Considerations</h4>
+                    <h4 className="route-details-title">Route Information</h4>
                     <ul className="route-details-list">
-                      {fastestRouteDescriptions.length > 0 ? (
-                        fastestRouteDescriptions.map((desc, idx) => (
-                          <li key={idx}>{desc}</li>
+                      {fastestRouteInfo.information.length > 0 ? (
+                        fastestRouteInfo.information.map((info, idx) => (
+                          <li key={idx}>{info}</li>
                         ))
                       ) : (
-                        <>
-                          <li>Shorter distance for quicker travel</li>
-                          <li>May include busier streets with higher traffic</li>
-                          <li>Potentially fewer safety features (lighting, sidewalks)</li>
-                          <li>May cross high-traffic intersections</li>
-                          <li>Less optimized for pedestrian safety infrastructure</li>
-                        </>
+                        <li>Shorter distance for quicker travel</li>
                       )}
                     </ul>
                   </div>
@@ -676,20 +981,17 @@ function App() {
                 </div>
                 <div className={`route-details ${expandedRoute === 'safest' ? 'expanded' : ''}`}>
                   <div className="route-details-content">
-                    <h4 className="route-details-title">Why This Route is Safer</h4>
+                    <h4 className="route-details-title">Route Benefits</h4>
                     <ul className="route-details-list">
-                      {safestRouteDescriptions.length > 0 ? (
-                        safestRouteDescriptions.map((desc, idx) => (
-                          <li key={idx}>{desc}</li>
+                      {safestRouteInfo.benefits.length > 0 ? (
+                        safestRouteInfo.benefits.map((benefit, idx) => (
+                          <li key={idx}>{benefit}</li>
                         ))
                       ) : (
                         <>
                           <li>Optimized for pedestrian safety infrastructure</li>
                           <li>Better street lighting coverage</li>
-                          <li>Lower crime risk areas</li>
                           <li>Well-maintained sidewalks and pathways</li>
-                          <li>Avoids high-traffic intersections where possible</li>
-                          <li>Prioritizes dedicated bike lanes and pedestrian zones</li>
                         </>
                       )}
                     </ul>
