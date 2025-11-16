@@ -55,6 +55,8 @@ function LocationSearch({ value, onChange, placeholder, label, disabled }) {
       new window.google.maps.LatLng(60.0, -114.0)  // Northeast corner
     );
 
+    // Note: google.maps.places.Autocomplete is deprecated in favor of PlaceAutocompleteElement
+    // but still works. Consider migrating in the future.
     const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
       types: ['geocode', 'establishment'], // Restrict to addresses and places
       componentRestrictions: { country: 'ca' }, // Restrict to Canada

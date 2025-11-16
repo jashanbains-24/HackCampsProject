@@ -228,6 +228,41 @@ router.get('/route', async (req, res) => {
       safestRouteCoords[safestRouteCoords.length - 1] = endCoord;
     }
     
+    // Calculate total distance and estimated time for each route
+    const calculateRouteDistance = (coords) => {
+      if (!coords || coords.length < 2) return 0;
+      let totalDistance = 0;
+      for (let i = 0; i < coords.length - 1; i++) {
+        const dist = calculateDistance(coords[i], coords[i + 1]);
+        totalDistance += dist;
+      }
+      return totalDistance; // Distance in km
+    };
+    
+    // Calculate estimated time (assuming average walking speed of 5 km/h)
+    const calculateRouteTime = (distanceKm) => {
+      if (!distanceKm || distanceKm === 0) return 0;
+      const walkingSpeedKmh = 5; // Average walking speed
+      const timeHours = distanceKm / walkingSpeedKmh;
+      const timeMinutes = Math.round(timeHours * 60);
+      return Math.max(1, timeMinutes); // At least 1 minute
+    };
+    
+    const fastestDistance = calculateRouteDistance(fastestRouteCoords);
+    const safestDistance = calculateRouteDistance(safestRouteCoords);
+    const fastestTime = calculateRouteTime(fastestDistance);
+    const safestTime = calculateRouteTime(safestDistance);
+    
+    // Debug logging
+    console.log('Route calculations:', {
+      fastestDistance,
+      fastestTime,
+      safestDistance,
+      safestTime,
+      fastestCoordsLength: fastestRouteCoords.length,
+      safestCoordsLength: safestRouteCoords.length
+    });
+    
     // Convert to Google Maps format: [{ lat, lng }, ...]
     const convertToGoogleFormat = (coords) => {
       return coords.map(coord => ({
@@ -240,7 +275,11 @@ router.get('/route', async (req, res) => {
       fastestRoute: convertToGoogleFormat(fastestRouteCoords),
       safestRoute: convertToGoogleFormat(safestRouteCoords),
       start: { lat: startCoord[0], lng: startCoord[1] },
-      end: { lat: endCoord[0], lng: endCoord[1] }
+      end: { lat: endCoord[0], lng: endCoord[1] },
+      fastestDistance: fastestDistance, // Distance in km
+      safestDistance: safestDistance, // Distance in km
+      fastestTime: fastestTime, // Estimated time in minutes
+      safestTime: safestTime // Estimated time in minutes
     });
   } catch (error) {
     console.error('Error in /route:', error);

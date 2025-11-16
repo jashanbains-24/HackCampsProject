@@ -41,6 +41,34 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
   const endInfoWindowRef = useRef(null);
   const fastestAnimationRef = useRef(null);
   const safestAnimationRef = useRef(null);
+  const isInteractingRef = useRef(false);
+  const interactionTimeoutRef = useRef(null);
+
+  // Simplify path using distance-based algorithm for performance
+  const simplifyPath = (path, tolerance = 0.0001) => {
+    if (!path || path.length <= 2) return path;
+    
+    // Simple distance-based simplification for performance
+    const simplified = [path[0]];
+    let lastPoint = path[0];
+    
+    for (let i = 1; i < path.length - 1; i++) {
+      const point = path[i];
+      const distance = Math.sqrt(
+        Math.pow(point.lat - lastPoint.lat, 2) + 
+        Math.pow(point.lng - lastPoint.lng, 2)
+      );
+      
+      if (distance > tolerance) {
+        simplified.push(point);
+        lastPoint = point;
+      }
+    }
+    
+    // Always include the last point
+    simplified.push(path[path.length - 1]);
+    return simplified;
+  };
 
   // Load Google Maps script
   useEffect(() => {
@@ -70,7 +98,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     }
     
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=geometry,places`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=geometry,places&loading=async`;
     script.async = true;
     script.defer = true;
     script.onload = () => setIsLoaded(true);
@@ -231,7 +259,61 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
       styles: darkModeStyles,
       // Keep My Location button but we'll style it in dark mode
       disableDefaultUI: false,      // Allow default UI so we can style it
+      // Performance optimizations
+      maxZoom: 20,                  // Limit max zoom for performance
+      minZoom: 10,                  // Limit min zoom
     });
+
+    // Track map interactions for performance optimization
+    const handleInteractionStart = () => {
+      isInteractingRef.current = true;
+      // Simplify polylines during interaction by enabling optimization
+      if (fastestPolylineRef.current) {
+        fastestPolylineRef.current.setOptions({ optimized: true });
+        // Get current path and simplify if it's long
+        const currentPath = fastestPolylineRef.current.getPath();
+        if (currentPath && currentPath.getLength() > 100) {
+          const pathArray = Array.from(currentPath.getArray());
+          const simplified = simplifyPath(pathArray.map(p => ({ lat: p.lat(), lng: p.lng() })), 0.0001);
+          fastestPolylineRef.current.setPath(simplified);
+        }
+      }
+      if (safestPolylineRef.current) {
+        safestPolylineRef.current.setOptions({ optimized: true });
+        // Get current path and simplify if it's long
+        const currentPath = safestPolylineRef.current.getPath();
+        if (currentPath && currentPath.getLength() > 100) {
+          const pathArray = Array.from(currentPath.getArray());
+          const simplified = simplifyPath(pathArray.map(p => ({ lat: p.lat(), lng: p.lng() })), 0.0001);
+          safestPolylineRef.current.setPath(simplified);
+        }
+      }
+    };
+
+    const handleInteractionEnd = () => {
+      // Clear any existing timeout
+      if (interactionTimeoutRef.current) {
+        clearTimeout(interactionTimeoutRef.current);
+      }
+      // Delay restoring full detail to avoid lag
+      interactionTimeoutRef.current = setTimeout(() => {
+        isInteractingRef.current = false;
+        // Restore full polyline detail after interaction
+        // The useEffect hooks will handle restoring the full paths
+        if (fastestPolylineRef.current) {
+          fastestPolylineRef.current.setOptions({ optimized: true });
+        }
+        if (safestPolylineRef.current) {
+          safestPolylineRef.current.setOptions({ optimized: true });
+        }
+      }, 300);
+    };
+
+    // Listen for map interactions
+    map.addListener('dragstart', handleInteractionStart);
+    map.addListener('zoom_changed', handleInteractionStart);
+    map.addListener('dragend', handleInteractionEnd);
+    map.addListener('idle', handleInteractionEnd);
 
     // Style My Location button to dark mode
     setTimeout(() => {
@@ -338,6 +420,11 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     const isSelected = selectedRoute === 'fastest';
     const opacity = isSelected ? 0.85 : 0.595; // 30% reduction when not selected (0.85 * 0.7)
 
+    // Simplify path during interaction for better performance
+    const simplifiedPath = isInteractingRef.current && path.length > 100
+      ? simplifyPath(path, 0.0001) // Simplify when interacting
+      : path;
+
     // Create or update visible polyline
     if (!fastestPolylineRef.current) {
       fastestPolylineRef.current = new window.google.maps.Polyline({
@@ -349,6 +436,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         map: mapInstanceRef.current,
         clickable: false, // Disable clicks on visible line
         icons: [], // No arrows
+        optimized: true, // Optimize rendering
       });
     } else {
       fastestPolylineRef.current.setOptions({
@@ -356,7 +444,12 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         strokeWeight: isSelected ? 4 : 3,
         clickable: false,
         icons: [],
+        optimized: !isInteractingRef.current, // Optimize during interaction
       });
+      // Update path with simplified version if interacting
+      if (isInteractingRef.current && path.length > 100) {
+        fastestPolylineRef.current.setPath(simplifiedPath);
+      }
     }
 
     // Create or update invisible clickable polyline with larger hitbox
@@ -380,10 +473,15 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
       fastestClickPolylineRef.current.setPath(path);
     }
 
-    // Animate the visible polyline
-    animatePolyline(fastestPolylineRef, path, 2000).then(() => {
-      fastestAnimationRef.current = null;
-    });
+    // Animate the visible polyline (only if not currently interacting)
+    if (!isInteractingRef.current) {
+      animatePolyline(fastestPolylineRef, path, 2000).then(() => {
+        fastestAnimationRef.current = null;
+      });
+    } else {
+      // If interacting, just set the path directly without animation
+      fastestPolylineRef.current.setPath(simplifiedPath);
+    }
   }, [fastestRoute, mapInstanceRef.current, selectedRoute]);
 
   // Update safest route polyline
@@ -409,6 +507,11 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
     const isSelected = selectedRoute === 'safest';
     const opacity = isSelected ? 0.85 : 0.595; // 30% reduction when not selected (0.85 * 0.7)
 
+    // Simplify path during interaction for better performance
+    const simplifiedPath = isInteractingRef.current && path.length > 100
+      ? simplifyPath(path, 0.0001) // Simplify when interacting
+      : path;
+
     // Create or update visible polyline
     if (!safestPolylineRef.current) {
       safestPolylineRef.current = new window.google.maps.Polyline({
@@ -420,6 +523,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         map: mapInstanceRef.current,
         clickable: false, // Disable clicks on visible line
         icons: [], // No arrows
+        optimized: true, // Optimize rendering
       });
     } else {
       safestPolylineRef.current.setOptions({
@@ -427,7 +531,12 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
         strokeWeight: isSelected ? 4 : 3,
         clickable: false,
         icons: [],
+        optimized: !isInteractingRef.current, // Optimize during interaction
       });
+      // Update path with simplified version if interacting
+      if (isInteractingRef.current) {
+        safestPolylineRef.current.setPath(simplifiedPath);
+      }
     }
 
     // Create or update invisible clickable polyline with larger hitbox
@@ -451,10 +560,15 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
       safestClickPolylineRef.current.setPath(path);
     }
 
-    // Animate the visible polyline
-    animatePolyline(safestPolylineRef, path, 2000).then(() => {
-      safestAnimationRef.current = null;
-    });
+    // Animate the visible polyline (only if not currently interacting)
+    if (!isInteractingRef.current) {
+      animatePolyline(safestPolylineRef, path, 2000).then(() => {
+        safestAnimationRef.current = null;
+      });
+    } else {
+      // If interacting, just set the path directly without animation
+      safestPolylineRef.current.setPath(simplifiedPath);
+    }
   }, [safestRoute, mapInstanceRef.current, selectedRoute]);
 
   // Update start marker
@@ -471,6 +585,8 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
           startInfoWindowRef.current.setContent(`<div style="font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; padding: 8px 12px; font-size: 14px; color: #1C1C1E;"><strong style="font-weight: 600;">Start</strong><br/><span style="color: #636366;">${startLabel}</span></div>`);
         }
       } else {
+        // Note: google.maps.Marker is deprecated in favor of AdvancedMarkerElement
+        // but still works. Consider migrating in the future.
         startMarkerRef.current = new window.google.maps.Marker({
           position: position,
           map: mapInstanceRef.current,
@@ -485,7 +601,7 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
             anchor: new window.google.maps.Point(0, 0)
           },
           zIndex: 1000,
-          optimized: false
+          optimized: true // Optimize marker rendering for better performance
         });
         
         // Add info window for start marker (Apple-style)
@@ -561,13 +677,15 @@ function GoogleMap({ fastestRoute, safestRoute, start, end, startLabel = 'Start'
           };
         };
         
+        // Note: google.maps.Marker is deprecated in favor of AdvancedMarkerElement
+        // but still works. Consider migrating in the future.
         endMarkerRef.current = new window.google.maps.Marker({
           position: position,
           map: mapInstanceRef.current,
           title: endLabel,
           icon: createCheckerFlagIcon(),
           zIndex: 1000,
-          optimized: false
+          optimized: true // Optimize marker rendering for better performance
         });
         
         // Add info window for end marker (Apple-style)

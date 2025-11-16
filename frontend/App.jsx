@@ -122,6 +122,10 @@ function App() {
   });
   const [fastestRoute, setFastestRoute] = useState([]);
   const [safestRoute, setSafestRoute] = useState([]);
+  const [fastestDistance, setFastestDistance] = useState(null);
+  const [safestDistance, setSafestDistance] = useState(null);
+  const [fastestTime, setFastestTime] = useState(null);
+  const [safestTime, setSafestTime] = useState(null);
   const [startCoords, setStartCoords] = useState(null);
   const [endCoords, setEndCoords] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -233,10 +237,25 @@ function App() {
       
       setFastestRoute(data.fastestRoute || []);
       setSafestRoute(data.safestRoute || []);
+      setFastestDistance(data.fastestDistance !== undefined ? data.fastestDistance : null);
+      setSafestDistance(data.safestDistance !== undefined ? data.safestDistance : null);
+      setFastestTime(data.fastestTime !== undefined ? data.fastestTime : null);
+      setSafestTime(data.safestTime !== undefined ? data.safestTime : null);
       setStartCoords(data.start);
       setEndCoords(data.end);
       setSelectedRoute('safest'); // Reset to safest route by default
       setShowResults(true);
+      
+      // Debug: Log the received data
+      console.log('Route data received:', {
+        fastestTime: data.fastestTime,
+        fastestDistance: data.fastestDistance,
+        safestTime: data.safestTime,
+        safestDistance: data.safestDistance,
+        fastestTimeType: typeof data.fastestTime,
+        fastestDistanceType: typeof data.fastestDistance,
+        fullData: data
+      });
       
       // Analyze routes and store descriptions
       const fastestDescriptions = analyzeRoute(data.fastestRoute);
@@ -268,6 +287,10 @@ function App() {
     if (!startLocation || !endLocation) {
       setFastestRoute([]);
       setSafestRoute([]);
+      setFastestDistance(null);
+      setSafestDistance(null);
+      setFastestTime(null);
+      setSafestTime(null);
       setStartCoords(null);
       setEndCoords(null);
       setShowResults(false);
