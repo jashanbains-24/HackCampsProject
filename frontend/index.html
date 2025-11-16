@@ -30,12 +30,12 @@
             <!-- Route Inputs -->
             <div class="space-y-4 mb-6">
                 <div>
-                    <label class="block text-sm font-semibold mb-2">From</label>
-                    <input type="text" class="w-full px-3 py-2 rounded text-gray-900" placeholder="Enter starting location">
+                    <label for="start-node" class="block text-sm font-medium mb-2">Start Location:</label>
+                    <select id="start-node" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-black px-3 py-2"></select>
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold mb-2">To</label>
-                    <input type="text" class="w-full px-3 py-2 rounded text-gray-900" placeholder="Enter destination">
+                    <label for="end-node" class="block text-sm font-medium mb-2 mt-4">End Location:</label>
+                    <select id="end-node" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-black px-3 py-2"></select>
                 </div>
             </div>
 
@@ -87,22 +87,116 @@
             'F': [49.2740, -123.1200]  // Library Square
         };
 
-        // Mock City Data - Edges (streets with component scores)
+        // Node names for display
+        const nodeNames = {
+            'A': 'Gastown',
+            'B': 'Waterfront Station',
+            'C': 'Granville Street',
+            'D': 'Vancouver Art Gallery',
+            'E': 'Yaletown',
+            'F': 'Library Square'
+        };
+
+        // Mock City Data - Edges (streets with component scores and realistic paths)
         const edges = [
-            { from: 'A', to: 'B', distance: 1, scores: { infra: 8, light: 9, crime: 2, disruption: 0, amenity: 8 } },
-            { from: 'B', to: 'C', distance: 1, scores: { infra: 4, light: 3, crime: 8, disruption: 0, amenity: 2 } },
-            { from: 'A', to: 'C', distance: 2, scores: { infra: 6, light: 5, crime: 5, disruption: 0, amenity: 0 } },
-            { from: 'B', to: 'D', distance: 2, scores: { infra: 9, light: 8, crime: 3, disruption: 0, amenity: 5 } },
-            { from: 'C', to: 'D', distance: 1, scores: { infra: 3, light: 2, crime: 9, disruption: 10, amenity: 1 } }, // Bad route
-            { from: 'C', to: 'E', distance: 3, scores: { infra: 7, light: 7, crime: 4, disruption: 0, amenity: 3 } },
-            { from: 'D', to: 'E', distance: 1, scores: { infra: 8, light: 9, crime: 2, disruption: 0, amenity: 7 } },
-            { from: 'E', to: 'F', distance: 2, scores: { infra: 9, light: 9, crime: 1, disruption: 0, amenity: 9 } }, // Very safe
-            { from: 'C', to: 'F', distance: 2, scores: { infra: 5, light: 6, crime: 6, disruption: 0, amenity: 4 } }
+            { 
+                from: 'A', to: 'B', distance: 1, 
+                scores: { infra: 8, light: 9, crime: 2, disruption: 0, amenity: 8 },
+                path: [
+                    [49.2827, -123.1207], // Node A
+                    [49.2823, -123.1200],
+                    [49.2818, -123.1195],
+                    [49.2810, -123.1190]  // Node B
+                ]
+            },
+            { 
+                from: 'B', to: 'C', distance: 1, 
+                scores: { infra: 4, light: 3, crime: 8, disruption: 0, amenity: 2 },
+                path: [
+                    [49.2810, -123.1190], // Node B
+                    [49.2800, -123.1200],
+                    [49.2790, -123.1215],
+                    [49.2780, -123.1230]  // Node C
+                ]
+            },
+            { 
+                from: 'A', to: 'C', distance: 2, 
+                scores: { infra: 6, light: 5, crime: 5, disruption: 0, amenity: 0 },
+                path: [
+                    [49.2827, -123.1207], // Node A
+                    [49.2815, -123.1215],
+                    [49.2800, -123.1220],
+                    [49.2780, -123.1230]  // Node C
+                ]
+            },
+            { 
+                from: 'B', to: 'D', distance: 2, 
+                scores: { infra: 9, light: 8, crime: 3, disruption: 0, amenity: 5 },
+                path: [
+                    [49.2810, -123.1190], // Node B
+                    [49.2805, -123.1210],
+                    [49.2800, -123.1230],
+                    [49.2790, -123.1250]  // Node D
+                ]
+            },
+            { 
+                from: 'C', to: 'D', distance: 1, 
+                scores: { infra: 3, light: 2, crime: 9, disruption: 10, amenity: 1 }, // Bad route
+                path: [
+                    [49.2780, -123.1230], // Node C
+                    [49.2785, -123.1240],
+                    [49.2790, -123.1250]  // Node D
+                ]
+            },
+            { 
+                from: 'C', to: 'E', distance: 3, 
+                scores: { infra: 7, light: 7, crime: 4, disruption: 0, amenity: 3 },
+                path: [
+                    [49.2780, -123.1230], // Node C
+                    [49.2775, -123.1245],
+                    [49.2770, -123.1260],
+                    [49.2765, -123.1270],
+                    [49.2760, -123.1280]  // Node E
+                ]
+            },
+            { 
+                from: 'D', to: 'E', distance: 1, 
+                scores: { infra: 8, light: 9, crime: 2, disruption: 0, amenity: 7 },
+                path: [
+                    [49.2790, -123.1250], // Node D
+                    [49.2780, -123.1265],
+                    [49.2770, -123.1275],
+                    [49.2760, -123.1280]  // Node E
+                ]
+            },
+            { 
+                from: 'E', to: 'F', distance: 2, 
+                scores: { infra: 9, light: 9, crime: 1, disruption: 0, amenity: 9 }, // Very safe
+                path: [
+                    [49.2760, -123.1280], // Node E
+                    [49.2755, -123.1250],
+                    [49.2750, -123.1225],
+                    [49.2745, -123.1210],
+                    [49.2740, -123.1200]  // Node F
+                ]
+            },
+            { 
+                from: 'C', to: 'F', distance: 2, 
+                scores: { infra: 5, light: 6, crime: 6, disruption: 0, amenity: 4 },
+                path: [
+                    [49.2780, -123.1230], // Node C
+                    [49.2770, -123.1220],
+                    [49.2760, -123.1210],
+                    [49.2750, -123.1205],
+                    [49.2740, -123.1200]  // Node F
+                ]
+            }
         ];
 
         // Global map variable
         let map;
-        let currentRouteLayer = null;
+        let fastestRouteLayer = null;
+        let safestRouteLayer = null;
         let routeMarkers = [];
 
         // Format time for display
@@ -174,7 +268,28 @@
             return []; // No path found
         }
 
-        // Build Graph with Time-of-Day Logic
+        // Build Graph for Fastest Route (distance only)
+        function buildGraph_Fastest() {
+            const graph = {};
+            
+            for (const edge of edges) {
+                const cost = edge.distance;
+
+                // Add to graph (bidirectional)
+                if (!graph[edge.from]) {
+                    graph[edge.from] = {};
+                }
+                if (!graph[edge.to]) {
+                    graph[edge.to] = {};
+                }
+                graph[edge.from][edge.to] = cost;
+                graph[edge.to][edge.from] = cost;
+            }
+
+            return graph;
+        }
+
+        // Build Graph with Time-of-Day Logic (for safest route)
         function buildGraph(currentHour) {
             const graph = {};
             const hour = parseInt(currentHour);
@@ -221,59 +336,222 @@
             return graph;
         }
 
-        // Draw Route on Map
-        function drawRoute(pathNodeIds) {
-            // Remove existing route
-            if (currentRouteLayer) {
-                map.removeLayer(currentRouteLayer);
+        // Draw Route on Map using realistic paths from edges
+        function drawRoute(pathNodeIds, color) {
+            if (!pathNodeIds || pathNodeIds.length === 0) {
+                return null;
             }
 
-            // Remove existing markers
+            // Build complete path from edge paths
+            let fullPathLatLngs = [];
+            
+            for (let i = 0; i < pathNodeIds.length - 1; i++) {
+                const a = pathNodeIds[i];
+                const b = pathNodeIds[i + 1];
+                
+                // Find the edge
+                let edge = edges.find(e => 
+                    (e.from === a && e.to === b) || (e.from === b && e.to === a)
+                );
+                
+                if (edge && edge.path) {
+                    let edgePath = [...edge.path];
+                    
+                    // If edge is reversed, reverse the path
+                    if (edge.from === b && edge.to === a) {
+                        edgePath = edgePath.reverse();
+                    }
+                    
+                    // Add path points (skip first point if not the first edge to avoid duplicates)
+                    if (i === 0) {
+                        fullPathLatLngs.push(...edgePath);
+                    } else {
+                        fullPathLatLngs.push(...edgePath.slice(1)); // Skip first point
+                    }
+                }
+            }
+
+            if (fullPathLatLngs.length === 0) {
+                return null;
+            }
+
+            // Create polyline
+            const polyline = L.polyline(fullPathLatLngs, {
+                color: color,
+                weight: 6,
+                opacity: 0.7
+            }).addTo(map);
+
+            return polyline;
+        }
+
+        // Calculate Path Metrics
+        function calculatePathMetrics(pathNodeIds, currentHour) {
+            if (!pathNodeIds || pathNodeIds.length === 0) {
+                return null;
+            }
+
+            let totalDistance = 0;
+            let totalInfra = 0;
+            let totalLight = 0;
+            let totalCrime = 0;
+            let totalDisruption = 0;
+            let totalAmenity = 0;
+            let edgeCount = 0;
+
+            // Sum up all edge metrics
+            for (let i = 0; i < pathNodeIds.length - 1; i++) {
+                const a = pathNodeIds[i];
+                const b = pathNodeIds[i + 1];
+                
+                const edge = edges.find(e => 
+                    (e.from === a && e.to === b) || (e.from === b && e.to === a)
+                );
+                
+                if (edge) {
+                    totalDistance += edge.distance;
+                    totalInfra += edge.scores.infra;
+                    totalLight += edge.scores.light;
+                    totalCrime += edge.scores.crime;
+                    totalDisruption += edge.scores.disruption;
+                    totalAmenity += edge.scores.amenity;
+                    edgeCount++;
+                }
+            }
+
+            // Calculate averages
+            const avgInfra = edgeCount > 0 ? totalInfra / edgeCount : 0;
+            const avgLight = edgeCount > 0 ? totalLight / edgeCount : 0;
+            const avgCrime = edgeCount > 0 ? totalCrime / edgeCount : 0;
+            const avgDisruption = edgeCount > 0 ? totalDisruption / edgeCount : 0;
+            const avgAmenity = edgeCount > 0 ? totalAmenity / edgeCount : 0;
+
+            // Calculate safety score using time-of-day logic
+            const hour = parseInt(currentHour);
+            let lightWeight = W_LIGHTING;
+            let crimeWeight = W_CRIME;
+            const isDayTime = (hour > 6 && hour < 19);
+
+            if (isDayTime) {
+                lightWeight = 0.1;
+            } else {
+                crimeWeight = crimeWeight * 1.5;
+            }
+
+            const safetyScore = (W_INFRASTRUCTURE * avgInfra) +
+                              (lightWeight * avgLight) +
+                              (W_AMENITY * avgAmenity) +
+                              (crimeWeight * avgCrime) +
+                              (W_DISRUPTION * avgDisruption);
+
+            // Normalize to 0-100 scale
+            const normalizedScore = Math.max(0, Math.min(100, Math.round(50 + safetyScore)));
+
+            return {
+                distance: totalDistance.toFixed(1),
+                safetyScore: normalizedScore,
+                infra: avgInfra.toFixed(1),
+                light: avgLight.toFixed(1),
+                crime: avgCrime.toFixed(1),
+                disruption: avgDisruption.toFixed(1),
+                amenity: avgAmenity.toFixed(1)
+            };
+        }
+
+        // Update All Routes (Main Function)
+        function updateAllRoutes() {
+            const startNode = document.getElementById('start-node').value;
+            const endNode = document.getElementById('end-node').value;
+            const hour = parseInt(document.getElementById('time-slider').value);
+
+            // Clear old routes
+            if (fastestRouteLayer) {
+                map.removeLayer(fastestRouteLayer);
+                fastestRouteLayer = null;
+            }
+            if (safestRouteLayer) {
+                map.removeLayer(safestRouteLayer);
+                safestRouteLayer = null;
+            }
+
+            // Remove old markers
             routeMarkers.forEach(marker => map.removeLayer(marker));
             routeMarkers = [];
 
-            if (!pathNodeIds || pathNodeIds.length === 0) {
+            if (startNode === endNode || !startNode || !endNode) {
+                document.getElementById('details-panel').innerHTML = '<p class="text-gray-300">Please select different start and end locations.</p>';
                 return;
             }
 
-            // Convert node IDs to lat/lng coordinates
-            const latLngs = pathNodeIds.map(nodeId => nodes[nodeId]);
+            // Find Fastest Path
+            const graph_fast = buildGraph_Fastest();
+            const fastestPathNodes = findShortestPath(graph_fast, startNode, endNode);
 
-            // Create polyline
-            currentRouteLayer = L.polyline(latLngs, {
-                color: '#22c55e',
-                weight: 6,
-                opacity: 0.8
-            }).addTo(map);
+            // Find Safest Path
+            const graph_safe = buildGraph(hour);
+            const safestPathNodes = findShortestPath(graph_safe, startNode, endNode);
+
+            // Draw both paths
+            if (fastestPathNodes.length > 0) {
+                fastestRouteLayer = drawRoute(fastestPathNodes, 'blue');
+            }
+            if (safestPathNodes.length > 0) {
+                safestRouteLayer = drawRoute(safestPathNodes, 'green');
+            }
 
             // Add markers for start and end
-            const startMarker = L.marker(latLngs[0]).addTo(map).bindPopup('Start: ' + pathNodeIds[0]);
-            const endMarker = L.marker(latLngs[latLngs.length - 1]).addTo(map).bindPopup('End: ' + pathNodeIds[pathNodeIds.length - 1]);
-            routeMarkers.push(startMarker, endMarker);
+            if (nodes[startNode] && nodes[endNode]) {
+                const startMarker = L.marker(nodes[startNode]).addTo(map)
+                    .bindPopup(`Start: ${nodeNames[startNode]} (${startNode})`);
+                const endMarker = L.marker(nodes[endNode]).addTo(map)
+                    .bindPopup(`End: ${nodeNames[endNode]} (${endNode})`);
+                routeMarkers.push(startMarker, endMarker);
 
-            // Fit map to route bounds
-            map.fitBounds(currentRouteLayer.getBounds(), { padding: [50, 50] });
-        }
+                // Fit map to show both routes
+                const bounds = L.latLngBounds([nodes[startNode], nodes[endNode]]);
+                if (fastestRouteLayer) {
+                    bounds.extend(fastestRouteLayer.getBounds());
+                }
+                if (safestRouteLayer) {
+                    bounds.extend(safestRouteLayer.getBounds());
+                }
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
 
-        // Update Route (Main Function)
-        function updateRoute() {
-            const hour = parseInt(document.getElementById('time-slider').value);
-            const graph = buildGraph(hour);
-            const safestPath = findShortestPath(graph, 'A', 'F');
-            
-            drawRoute(safestPath);
+            // Calculate metrics
+            const fastestMetrics = calculatePathMetrics(fastestPathNodes, hour);
+            const safestMetrics = calculatePathMetrics(safestPathNodes, hour);
 
             // Update details panel
             const detailsPanel = document.getElementById('details-panel');
-            if (safestPath.length > 0) {
-                const pathString = safestPath.join(' → ');
-                const isDayTime = (hour >= 6 && hour < 19);
-                
+            const isDayTime = (hour >= 6 && hour < 19);
+
+            if (fastestMetrics && safestMetrics) {
+                const fastestScoreColor = fastestMetrics.safetyScore >= 70 ? 'text-green-400' : fastestMetrics.safetyScore >= 50 ? 'text-yellow-400' : 'text-red-400';
+                const safestScoreColor = safestMetrics.safetyScore >= 70 ? 'text-green-400' : safestMetrics.safetyScore >= 50 ? 'text-yellow-400' : 'text-red-400';
+
                 detailsPanel.innerHTML = `
-                    <h3 class="text-lg font-bold text-green-400 mb-2">Safest Route Found</h3>
-                    <div class="text-sm my-2">
-                        <p class="text-gray-300">Path: <span class="font-semibold">${pathString}</span></p>
-                        <p class="text-gray-300 mt-2">Nodes: ${safestPath.length}</p>
+                    <div class="p-4 bg-green-800 rounded-lg mb-4">
+                        <h3 class="text-lg font-bold text-green-400 mb-2">🛡️ Safest Route</h3>
+                        <div class="text-2xl font-bold ${safestScoreColor} mb-2">
+                            ${safestMetrics.safetyScore} <span class="text-sm text-white">/ 100</span>
+                        </div>
+                        <p class="text-sm text-gray-300">Distance: <span class="font-semibold">${safestMetrics.distance} km</span></p>
+                        <div class="mt-2 text-xs text-gray-400 space-y-1">
+                            <p>Infrastructure: ${safestMetrics.infra} | Lighting: ${safestMetrics.light} | Crime: ${safestMetrics.crime}</p>
+                            <p>Safe Havens: ${safestMetrics.amenity} | Disruptions: ${safestMetrics.disruption}</p>
+                        </div>
+                    </div>
+                    <div class="p-4 bg-blue-800 rounded-lg">
+                        <h3 class="text-lg font-bold text-blue-300 mb-2">⚡ Fastest Route</h3>
+                        <div class="text-2xl font-bold ${fastestScoreColor} mb-2">
+                            ${fastestMetrics.safetyScore} <span class="text-sm text-white">/ 100</span>
+                        </div>
+                        <p class="text-sm text-gray-300">Distance: <span class="font-semibold">${fastestMetrics.distance} km</span></p>
+                        <div class="mt-2 text-xs text-gray-400 space-y-1">
+                            <p>Infrastructure: ${fastestMetrics.infra} | Lighting: ${fastestMetrics.light} | Crime: ${fastestMetrics.crime}</p>
+                            <p>Safe Havens: ${fastestMetrics.amenity} | Disruptions: ${fastestMetrics.disruption}</p>
+                        </div>
                     </div>
                     <div class="mt-4 pt-4 border-t border-blue-700">
                         <p class="text-xs text-gray-400">
@@ -286,6 +564,34 @@
             }
         }
 
+        // Populate Node Dropdowns
+        function populateNodeDropdowns() {
+            const startSelect = document.getElementById('start-node');
+            const endSelect = document.getElementById('end-node');
+
+            // Clear existing options
+            startSelect.innerHTML = '<option value="">Select start location...</option>';
+            endSelect.innerHTML = '<option value="">Select end location...</option>';
+
+            // Add options for each node
+            for (const nodeId in nodes) {
+                const optionText = `${nodeNames[nodeId]} (${nodeId})`;
+                const startOption = document.createElement('option');
+                startOption.value = nodeId;
+                startOption.textContent = optionText;
+                startSelect.appendChild(startOption);
+
+                const endOption = document.createElement('option');
+                endOption.value = nodeId;
+                endOption.textContent = optionText;
+                endSelect.appendChild(endOption);
+            }
+
+            // Set default values
+            startSelect.value = 'A';
+            endSelect.value = 'F';
+        }
+
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize Leaflet map
@@ -294,24 +600,32 @@
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
 
+            // Populate node dropdowns
+            populateNodeDropdowns();
+
             // Initialize time slider
             const slider = document.getElementById('time-slider');
             const timeLabel = document.getElementById('time-label');
+            const startSelect = document.getElementById('start-node');
+            const endSelect = document.getElementById('end-node');
             const currentHour = new Date().getHours();
 
             // Set slider to current hour
             slider.value = currentHour;
             timeLabel.textContent = formatTime(currentHour);
 
-            // Add slider listener
+            // Add event listeners
             slider.addEventListener('input', function() {
                 const hour = parseInt(this.value);
                 timeLabel.textContent = formatTime(hour);
-                updateRoute();
+                updateAllRoutes();
             });
 
+            startSelect.addEventListener('change', updateAllRoutes);
+            endSelect.addEventListener('change', updateAllRoutes);
+
             // Draw initial route
-            updateRoute();
+            updateAllRoutes();
         });
     </script>
 </body>
