@@ -3,57 +3,316 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NavGuard</title>
+    <title>NavGuard - SafeWalk Vancouver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
         }
-
-        html, body {
-            margin: 0;
-            padding: 0;
-            min-height: 100vh;
-            height: 100%;
-            font-family: Arial, sans-serif;
-        }
-
-        .container {
-            display: flex;
-            height: 100vh;
-            width: 100%;
-        }
-
-        .sidebar {
-            width: 33.33%;
-            background-color: #020488;
-            position: relative;
-            min-height: 100vh;
-        }
-
-        .title {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: white;
-            font-size: 32px;
-            font-weight: bold;
-        }
-
-        .main-content {
-            width: 66.67%;
-            background-color: #d3d3d3;
-            height: 100%;
+        #map {
+            z-index: 1;
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <div class="sidebar">
-            <div class="title">NavGuard</div>
+<body class="h-screen overflow-hidden">
+    <div class="flex h-full">
+        <!-- Left Sidebar (Controls) -->
+        <div class="flex-none w-1/3 bg-blue-900 text-white p-6 overflow-y-auto">
+            <h1 class="text-3xl font-bold mb-6">SafeWalk Vancouver</h1>
+            
+            <!-- Route Inputs -->
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-sm font-semibold mb-2">From</label>
+                    <input type="text" class="w-full px-3 py-2 rounded text-gray-900" placeholder="Enter starting location">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-2">To</label>
+                    <input type="text" class="w-full px-3 py-2 rounded text-gray-900" placeholder="Enter destination">
+                </div>
+            </div>
+
+            <!-- Time Slider -->
+            <div class="mb-6">
+                <label class="block text-sm font-semibold mb-2">
+                    Time of Day: <span id="time-label" class="text-blue-300">12:00 PM</span>
+                </label>
+                <input 
+                    type="range" 
+                    id="time-slider" 
+                    min="0" 
+                    max="23" 
+                    value="12" 
+                    class="w-full"
+                >
+            </div>
+
+            <!-- Route Details Panel -->
+            <div class="mt-6">
+                <h2 class="text-xl font-semibold mb-4">Route Details</h2>
+                <div id="details-panel" class="bg-blue-800 rounded-lg p-4 min-h-[200px]">
+                    <p class="text-gray-300">Click a route on the map to see details.</p>
+                </div>
+            </div>
         </div>
-        <div class="main-content"></div>
+
+        <!-- Main Content Area (Map) -->
+        <div class="flex-grow bg-gray-200 relative overflow-hidden">
+            <div id="map" class="h-full w-full"></div>
+        </div>
     </div>
+
+    <script>
+        // Scoring Weights
+        const W_INFRASTRUCTURE = 2.5;
+        const W_LIGHTING = 2.0;
+        const W_AMENITY = 1.5;
+        const W_CRIME = -3.0;
+        const W_DISRUPTION = -2.0;
+
+        // Mock City Data - Nodes (locations in Vancouver)
+        const nodes = {
+            'A': [49.2827, -123.1207], // Gastown
+            'B': [49.2810, -123.1190], // Waterfront Station
+            'C': [49.2780, -123.1230], // Granville Street
+            'D': [49.2790, -123.1250], // Vancouver Art Gallery
+            'E': [49.2760, -123.1280], // Yaletown
+            'F': [49.2740, -123.1200]  // Library Square
+        };
+
+        // Mock City Data - Edges (streets with component scores)
+        const edges = [
+            { from: 'A', to: 'B', distance: 1, scores: { infra: 8, light: 9, crime: 2, disruption: 0, amenity: 8 } },
+            { from: 'B', to: 'C', distance: 1, scores: { infra: 4, light: 3, crime: 8, disruption: 0, amenity: 2 } },
+            { from: 'A', to: 'C', distance: 2, scores: { infra: 6, light: 5, crime: 5, disruption: 0, amenity: 0 } },
+            { from: 'B', to: 'D', distance: 2, scores: { infra: 9, light: 8, crime: 3, disruption: 0, amenity: 5 } },
+            { from: 'C', to: 'D', distance: 1, scores: { infra: 3, light: 2, crime: 9, disruption: 10, amenity: 1 } }, // Bad route
+            { from: 'C', to: 'E', distance: 3, scores: { infra: 7, light: 7, crime: 4, disruption: 0, amenity: 3 } },
+            { from: 'D', to: 'E', distance: 1, scores: { infra: 8, light: 9, crime: 2, disruption: 0, amenity: 7 } },
+            { from: 'E', to: 'F', distance: 2, scores: { infra: 9, light: 9, crime: 1, disruption: 0, amenity: 9 } }, // Very safe
+            { from: 'C', to: 'F', distance: 2, scores: { infra: 5, light: 6, crime: 6, disruption: 0, amenity: 4 } }
+        ];
+
+        // Global map variable
+        let map;
+        let currentRouteLayer = null;
+        let routeMarkers = [];
+
+        // Format time for display
+        function formatTime(hour) {
+            const period = hour >= 12 ? 'PM' : 'AM';
+            const displayHour = hour === 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+            return `${displayHour}:00 ${period}`;
+        }
+
+        // Dijkstra's Algorithm
+        function findShortestPath(graph, startNode, endNode) {
+            const distances = {};
+            const previous = {};
+            const unvisited = new Set();
+            const visited = new Set();
+
+            // Initialize distances
+            for (const node in graph) {
+                distances[node] = Infinity;
+                previous[node] = null;
+                unvisited.add(node);
+            }
+            distances[startNode] = 0;
+
+            while (unvisited.size > 0) {
+                // Find the unvisited node with the smallest distance
+                let currentNode = null;
+                let smallestDistance = Infinity;
+                
+                for (const node of unvisited) {
+                    if (distances[node] < smallestDistance) {
+                        smallestDistance = distances[node];
+                        currentNode = node;
+                    }
+                }
+
+                if (currentNode === null || distances[currentNode] === Infinity) {
+                    break; // No path exists
+                }
+
+                if (currentNode === endNode) {
+                    // Reconstruct path
+                    const path = [];
+                    let node = endNode;
+                    while (node !== null) {
+                        path.unshift(node);
+                        node = previous[node];
+                    }
+                    return path;
+                }
+
+                unvisited.delete(currentNode);
+                visited.add(currentNode);
+
+                // Update distances to neighbors
+                if (graph[currentNode]) {
+                    for (const neighbor in graph[currentNode]) {
+                        if (visited.has(neighbor)) continue;
+
+                        const alt = distances[currentNode] + graph[currentNode][neighbor];
+                        if (alt < distances[neighbor]) {
+                            distances[neighbor] = alt;
+                            previous[neighbor] = currentNode;
+                        }
+                    }
+                }
+            }
+
+            return []; // No path found
+        }
+
+        // Build Graph with Time-of-Day Logic
+        function buildGraph(currentHour) {
+            const graph = {};
+            const hour = parseInt(currentHour);
+
+            // Apply Time-of-Day Logic
+            let lightWeight = W_LIGHTING;
+            let crimeWeight = W_CRIME;
+            const isDayTime = (hour > 6 && hour < 19);
+
+            if (isDayTime) {
+                lightWeight = 0.1; // Lights don't matter in the day
+            } else {
+                crimeWeight = crimeWeight * 1.5; // Crime is worse at night
+            }
+
+            // Build adjacency list
+            for (const edge of edges) {
+                const scores = edge.scores;
+
+                // Calculate safety score (high is good)
+                const safetyScore = (W_INFRASTRUCTURE * scores.infra) +
+                                  (lightWeight * scores.light) +
+                                  (W_AMENITY * scores.amenity) +
+                                  (crimeWeight * scores.crime) +
+                                  (W_DISRUPTION * scores.disruption);
+
+                // Calculate final cost (low is good for Dijkstra's)
+                // Base cost is distance. A "safer" route feels shorter.
+                const cost = edge.distance - (safetyScore * 0.1);
+                // Ensure cost is never negative
+                const finalCost = Math.max(0.1, cost);
+
+                // Add to graph (bidirectional)
+                if (!graph[edge.from]) {
+                    graph[edge.from] = {};
+                }
+                if (!graph[edge.to]) {
+                    graph[edge.to] = {};
+                }
+                graph[edge.from][edge.to] = finalCost;
+                graph[edge.to][edge.from] = finalCost;
+            }
+
+            return graph;
+        }
+
+        // Draw Route on Map
+        function drawRoute(pathNodeIds) {
+            // Remove existing route
+            if (currentRouteLayer) {
+                map.removeLayer(currentRouteLayer);
+            }
+
+            // Remove existing markers
+            routeMarkers.forEach(marker => map.removeLayer(marker));
+            routeMarkers = [];
+
+            if (!pathNodeIds || pathNodeIds.length === 0) {
+                return;
+            }
+
+            // Convert node IDs to lat/lng coordinates
+            const latLngs = pathNodeIds.map(nodeId => nodes[nodeId]);
+
+            // Create polyline
+            currentRouteLayer = L.polyline(latLngs, {
+                color: '#22c55e',
+                weight: 6,
+                opacity: 0.8
+            }).addTo(map);
+
+            // Add markers for start and end
+            const startMarker = L.marker(latLngs[0]).addTo(map).bindPopup('Start: ' + pathNodeIds[0]);
+            const endMarker = L.marker(latLngs[latLngs.length - 1]).addTo(map).bindPopup('End: ' + pathNodeIds[pathNodeIds.length - 1]);
+            routeMarkers.push(startMarker, endMarker);
+
+            // Fit map to route bounds
+            map.fitBounds(currentRouteLayer.getBounds(), { padding: [50, 50] });
+        }
+
+        // Update Route (Main Function)
+        function updateRoute() {
+            const hour = parseInt(document.getElementById('time-slider').value);
+            const graph = buildGraph(hour);
+            const safestPath = findShortestPath(graph, 'A', 'F');
+            
+            drawRoute(safestPath);
+
+            // Update details panel
+            const detailsPanel = document.getElementById('details-panel');
+            if (safestPath.length > 0) {
+                const pathString = safestPath.join(' → ');
+                const isDayTime = (hour >= 6 && hour < 19);
+                
+                detailsPanel.innerHTML = `
+                    <h3 class="text-lg font-bold text-green-400 mb-2">Safest Route Found</h3>
+                    <div class="text-sm my-2">
+                        <p class="text-gray-300">Path: <span class="font-semibold">${pathString}</span></p>
+                        <p class="text-gray-300 mt-2">Nodes: ${safestPath.length}</p>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-blue-700">
+                        <p class="text-xs text-gray-400">
+                            ${isDayTime ? '☀️ Daytime: Lighting has minimal impact' : '🌙 Nighttime: Crime risk is weighted higher'}
+                        </p>
+                    </div>
+                `;
+            } else {
+                detailsPanel.innerHTML = '<p class="text-red-400">No route found</p>';
+            }
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Leaflet map
+            map = L.map('map').setView([49.28, -123.12], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+
+            // Initialize time slider
+            const slider = document.getElementById('time-slider');
+            const timeLabel = document.getElementById('time-label');
+            const currentHour = new Date().getHours();
+
+            // Set slider to current hour
+            slider.value = currentHour;
+            timeLabel.textContent = formatTime(currentHour);
+
+            // Add slider listener
+            slider.addEventListener('input', function() {
+                const hour = parseInt(this.value);
+                timeLabel.textContent = formatTime(hour);
+                updateRoute();
+            });
+
+            // Draw initial route
+            updateRoute();
+        });
+    </script>
 </body>
 </html>
